@@ -1,24 +1,35 @@
 import logging
+from contextlib import asynccontextmanager
 from io import BytesIO
+from pathlib import Path
 from urllib.parse import quote
 from uuid import uuid4
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
-from fastapi.responses import Response
 
 from config import settings
+from database import init_database
 from conversation_store import ConversationStore
 from voice_handler import VoiceHandler
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("adam")
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_database()
+    yield
+
+
 app = FastAPI(
     title="Adam Voice API",
-    description="Session-aware voice and text assistant API for Adam.",
-    version="1.1.0",
+    description="Persistent session-aware voice and text assistant API for Adam.",
+    version="1.2.0",
+    lifespan=lifespan,
 )
 
 voice_handler = None
@@ -53,8 +64,9 @@ def resolve_session_id(value):
     return value.strip() if value else str(uuid4())
 
 
-def save_turn(session_id, result):
-    conversations.add_turn(session_id, result["transcript"], result["reply"])
+@app.get("/", include_in_schema=False)
+def dashboard():
+    return FileResponse(Path(__file__).parent / "static" / "index.html")
 
 
 @app.get("/health")
@@ -70,7 +82,6 @@ async def voice_chat(
     """Upload a voice note; receive Adam's spoken answer as an MP3."""
     if not audio.filename:
         raise HTTPException(status_code=400, detail="An audio file is required")
-
     allowed_types = {
         "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
         "audio/mp4", "audio/m4a", "audio/x-m4a", "audio/webm",
@@ -87,14 +98,15 @@ async def voice_chat(
             raise HTTPException(status_code=400, detail="The audio file is empty")
         if len(data) > settings.max_upload_bytes:
             raise HTTPException(status_code=413, detail="Audio file is too large")
-
         audio_stream = BytesIO(data)
         audio_stream.name = audio.filename
-        history = conversations.get_history(current_session)
+        history = await run_in_threadpool(conversations.get_history, current_session)
         result = await run_in_threadpool(
             get_voice_handler().process_audio, audio_stream, history
         )
-        save_turn(current_session, result)
+        await run_in_threadpool(
+            conversations.add_turn, current_session, result["transcript"], result["reply"]
+        )
         return Response(
             content=result["audio"],
             media_type="audio/mpeg",
@@ -118,14 +130,15 @@ async def voice_chat(
 
 @app.post("/text/chat", response_model=TextChatResponse)
 async def text_chat(payload: TextChatRequest):
-    """Send a text message and receive Adam's text reply."""
     current_session = resolve_session_id(payload.session_id)
-    history = conversations.get_history(current_session)
+    history = await run_in_threadpool(conversations.get_history, current_session)
     try:
         result = await run_in_threadpool(
             get_voice_handler().process_text, payload.message, history
         )
-        save_turn(current_session, result)
+        await run_in_threadpool(
+            conversations.add_turn, current_session, result["transcript"], result["reply"]
+        )
         return TextChatResponse(
             session_id=current_session,
             transcript=result["transcript"],
@@ -139,19 +152,6 @@ async def text_chat(payload: TextChatRequest):
 
 
 @app.delete("/sessions/{session_id}")
-def delete_session(session_id: str):
-    """Clear the in-memory conversation history for one session."""
-    conversations.clear(session_id)
+async def delete_session(session_id: str):
+    await run_in_threadpool(conversations.clear, session_id)
     return {"status": "cleared", "session_id": session_id}
-
-
-@app.get("/")
-def root():
-    return {
-        "service": "Adam Voice API",
-        "health": "/health",
-        "voice_endpoint": "POST /voice/chat",
-        "text_endpoint": "POST /text/chat",
-        "session_endpoint": "DELETE /sessions/{session_id}",
-        "docs": "/docs",
-    }
