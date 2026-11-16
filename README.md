@@ -1,19 +1,20 @@
-# Adam Bot — Voice API
+# Adam Bot — Voice & Text API
 
-A Python voice pipeline for Adam:
+Adam is a Python API that supports voice conversations and text conversations with a shared session history.
 
-1. Accept an uploaded voice note.
-2. Transcribe it with OpenAI Speech-to-Text.
-3. Generate a reply with an OpenAI chat model.
-4. Convert the reply to MP3 with ElevenLabs.
-5. Return the MP3 audio to the caller.
+## What it does
+
+1. Receives an audio upload or a text message.
+2. Transcribes audio with OpenAI Speech-to-Text.
+3. Generates a contextual reply with an OpenAI chat model.
+4. Converts replies to MP3 using ElevenLabs.
+5. Keeps a bounded in-memory conversation history per session.
 
 ## Requirements
 
 - Python 3.10+
-- An OpenAI API key with access to audio transcription and chat completions
-- An ElevenLabs API key
-- An ElevenLabs voice ID
+- OpenAI API access for transcription and chat completions
+- ElevenLabs API access and a voice ID
 
 ## Setup
 
@@ -23,13 +24,7 @@ source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
 pip install -r requirements.txt
 ```
 
-Copy `.env.example` to `.env` and fill in:
-
-- `OPENAI_API_KEY`
-- `ELEVENLABS_API_KEY`
-- `ELEVENLABS_VOICE_ID`
-
-Set these as environment variables in your deployment platform. Do not commit the real `.env` file or expose API keys in client-side code.
+Copy `.env.example` to `.env` and configure the required environment variables. Keep the real `.env` file out of source control.
 
 ## Run locally
 
@@ -37,26 +32,58 @@ Set these as environment variables in your deployment platform. Do not commit th
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-- Health check: `GET /health`
-- Interactive API docs: `GET /docs`
-- Voice endpoint: `POST /voice/chat` with multipart form field named `audio`
+Open `/docs` for interactive API documentation.
+
+## API endpoints
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/` | Service information |
+| GET | `/health` | Health check |
+| POST | `/voice/chat` | Audio in, MP3 out |
+| POST | `/text/chat` | Text in, text reply out |
+| DELETE | `/sessions/{session_id}` | Clear a session's conversation history |
+
+### Voice conversation
+
+Send multipart form data with:
+- `audio`: audio file (MP3, WAV, M4A/MP4, or WebM)
+- `session_id`: optional session identifier; reuse it to continue a conversation
 
 Example:
 
 ```bash
-curl -X POST http://localhost:8000/voice/chat \
-  -F "audio=@voice-note.m4a" \
+curl -X POST http://localhost:8000/voice/chat \\
+  -F "audio=@voice-note.m4a" \\
+  -F "session_id=customer-123" \\
   --output adam-reply.mp3
 ```
 
-The endpoint returns `audio/mpeg`. The response headers `X-Adam-Transcript` and `X-Adam-Reply` contain URL-encoded text (decode them in the client if needed).
+The response is MP3 audio. It includes `X-Adam-Session-ID`, `X-Adam-Transcript`, and `X-Adam-Reply` headers. Text headers are URL-encoded.
 
-## Important integration note
+### Text conversation
 
-This repository currently provides a standalone HTTP voice API. It does not yet connect to WhatsApp, Telegram, or a website frontend. A platform adapter must download incoming voice notes, call `POST /voice/chat`, and send the returned MP3 to the conversation.
+```bash
+curl -X POST http://localhost:8000/text/chat \\
+  -H "Content-Type: application/json" \\
+  -d '{"message":"Hello Adam","session_id":"customer-123"}'
+```
 
-Conversation history, user authentication, persistent memory, rate limiting, and production deployment configuration are not implemented yet. Add those before exposing the service publicly.
+The response contains `session_id`, `transcript`, and `reply`. Reuse the same session ID for context across text and voice messages.
+
+### Clear a conversation
+
+```bash
+curl -X DELETE http://localhost:8000/sessions/customer-123
+```
+
+## Session behavior and limitations
+
+- Conversation history is held in process memory, expires after 30 minutes of inactivity, and is bounded to the latest 24 messages per session.
+- Sessions are lost when the server restarts and are not shared between multiple server instances.
+- There is no user authentication, persistent database, rate limiting, billing enforcement, or platform-specific WhatsApp/Telegram integration yet.
+- The API is a backend service; a website or messaging adapter must call these endpoints.
 
 ## Environment variables
 
-See [.env.example](.env.example) for the full list of settings.
+See `.env.example` for model, voice, upload-size, and credential settings.
