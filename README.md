@@ -36,6 +36,14 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 
 Open the developer playground at `/` and API docs at `/docs`.
 
+## Accounts and authentication
+
+- Create an account with `POST /auth/register` using an email and a password of at least 10 characters.
+- Sign in with `POST /auth/login`; both endpoints return a 24-hour bearer token.
+- Send `Authorization: Bearer <token>` with text chat, voice chat, and session deletion requests.
+- Set `AUTH_SECRET_KEY` to a cryptographically random value of at least 32 characters. Authentication endpoints remain unavailable until it is configured.
+- Conversation storage IDs are scoped by authenticated account, so users cannot read another account's history by guessing a session ID.
+
 ## API
 
 | Method | Endpoint | Purpose |
