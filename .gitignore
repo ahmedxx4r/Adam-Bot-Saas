@@ -6,3 +6,5 @@ venv/
 *.mp3
 .pytest_cache/
 .DS_Store
+*.db
+*.sqlite3
