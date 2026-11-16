@@ -14,13 +14,27 @@ class ConversationStore:
         self.max_sessions = max_sessions
         self.max_messages = max_messages
 
-    def _expire(self, db):
+    def _prune(self, db):
         cutoff = datetime.now(timezone.utc) - timedelta(seconds=self.ttl_seconds)
-        db.execute(delete(Conversation).where(Conversation.updated_at < cutoff))
+        expired_ids = db.scalars(
+            select(Conversation.id).where(Conversation.updated_at < cutoff)
+        ).all()
+        if expired_ids:
+            db.execute(delete(Message).where(Message.conversation_id.in_(expired_ids)))
+            db.execute(delete(Conversation).where(Conversation.id.in_(expired_ids)))
+
+        excess_ids = db.scalars(
+            select(Conversation.id)
+            .order_by(Conversation.updated_at.desc())
+            .offset(self.max_sessions)
+        ).all()
+        if excess_ids:
+            db.execute(delete(Message).where(Message.conversation_id.in_(excess_ids)))
+            db.execute(delete(Conversation).where(Conversation.id.in_(excess_ids)))
 
     def get_history(self, session_id):
         with SessionLocal() as db:
-            self._expire(db)
+            self._prune(db)
             conversation = db.get(Conversation, session_id)
             if conversation is None:
                 db.commit()
@@ -39,7 +53,7 @@ class ConversationStore:
     def add_turn(self, session_id, user_text, assistant_text):
         now = datetime.now(timezone.utc)
         with SessionLocal() as db:
-            self._expire(db)
+            self._prune(db)
             conversation = db.get(Conversation, session_id)
             if conversation is None:
                 conversation = Conversation(id=session_id, created_at=now, updated_at=now)
@@ -63,5 +77,6 @@ class ConversationStore:
 
     def clear(self, session_id):
         with SessionLocal() as db:
+            db.execute(delete(Message).where(Message.conversation_id == session_id))
             db.execute(delete(Conversation).where(Conversation.id == session_id))
             db.commit()
