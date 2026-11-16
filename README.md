@@ -1,22 +1,20 @@
 # Adam Bot — Voice & Text API
 
-Adam is a Python API that supports voice conversations and text conversations with a shared session history.
+Adam is a Python API for voice and text conversations, with persistent conversation history and a small developer playground.
 
-## What it does
+## Features
 
-1. Receives an audio upload or a text message.
-2. Transcribes audio with OpenAI Speech-to-Text.
-3. Generates a contextual reply with an OpenAI chat model.
-4. Converts replies to MP3 using ElevenLabs.
-5. Keeps a bounded in-memory conversation history per session.
-
-## Requirements
-
-- Python 3.10+
-- OpenAI API access for transcription and chat completions
-- ElevenLabs API access and a voice ID
+- OpenAI speech transcription and chat responses.
+- ElevenLabs MP3 speech generation.
+- Shared context across voice and text messages.
+- Persistent SQL conversation storage (SQLite by default; PostgreSQL supported).
+- Conversation expiration and bounded message history.
+- Docker runtime and automated test workflow.
+- Browser-based developer playground at `/`; interactive API docs at `/docs`.
 
 ## Setup
+
+Python 3.10+ is required.
 
 ```bash
 python -m venv .venv
@@ -24,66 +22,64 @@ source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
 pip install -r requirements.txt
 ```
 
-Copy `.env.example` to `.env` and configure the required environment variables. Keep the real `.env` file out of source control.
+Set the required environment variables from `.env.example` in your local environment. Keep actual credentials out of source control.
 
-## Run locally
+Optional database configuration:
+- `DATABASE_URL=sqlite:///./adam.db` (default)
+- PostgreSQL example: `DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST:5432/adam`
+
+## Run
 
 ```bash
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-Open `/docs` for interactive API documentation.
+Open the developer playground at `/` and API docs at `/docs`.
 
-## API endpoints
+## API
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| GET | `/` | Service information |
+| GET | `/` | Developer playground |
 | GET | `/health` | Health check |
 | POST | `/voice/chat` | Audio in, MP3 out |
 | POST | `/text/chat` | Text in, text reply out |
-| DELETE | `/sessions/{session_id}` | Clear a session's conversation history |
+| DELETE | `/sessions/{session_id}` | Delete one conversation |
 
-### Voice conversation
-
-Send multipart form data with:
-- `audio`: audio file (MP3, WAV, M4A/MP4, or WebM)
-- `session_id`: optional session identifier; reuse it to continue a conversation
-
-Example:
-
-```bash
-curl -X POST http://localhost:8000/voice/chat \\
-  -F "audio=@voice-note.m4a" \\
-  -F "session_id=customer-123" \\
-  --output adam-reply.mp3
-```
-
-The response is MP3 audio. It includes `X-Adam-Session-ID`, `X-Adam-Transcript`, and `X-Adam-Reply` headers. Text headers are URL-encoded.
-
-### Text conversation
+### Text chat
 
 ```bash
 curl -X POST http://localhost:8000/text/chat \\
   -H "Content-Type: application/json" \\
-  -d '{"message":"Hello Adam","session_id":"customer-123"}'
+  -d '{"message":"Hello Adam","session_id":"demo-01"}'
 ```
 
-The response contains `session_id`, `transcript`, and `reply`. Reuse the same session ID for context across text and voice messages.
-
-### Clear a conversation
+### Voice chat
 
 ```bash
-curl -X DELETE http://localhost:8000/sessions/customer-123
+curl -X POST http://localhost:8000/voice/chat \\
+  -F "audio=@voice-note.m4a" \\
+  -F "session_id=demo-01" \\
+  --output adam-reply.mp3
 ```
 
-## Session behavior and limitations
+Reuse the same session ID to share context between voice and text.
 
-- Conversation history is held in process memory, expires after 30 minutes of inactivity, and is bounded to the latest 24 messages per session.
-- Sessions are lost when the server restarts and are not shared between multiple server instances.
-- There is no user authentication, persistent database, rate limiting, billing enforcement, or platform-specific WhatsApp/Telegram integration yet.
-- The API is a backend service; a website or messaging adapter must call these endpoints.
+## Database and session behavior
 
-## Environment variables
+- SQLite is used by default and creates `adam.db` automatically.
+- Set `DATABASE_URL` to use PostgreSQL.
+- Conversation history expires after 30 days of inactivity and retains the latest 24 messages per session.
+- Run database migrations before deploying schema changes to an established production database; the current bootstrap creates missing tables but does not migrate existing schemas.
 
-See `.env.example` for model, voice, upload-size, and credential settings.
+## Current limitations
+
+- No account registration, authentication, per-user authorization, or billing/usage metering yet.
+- The root page is a developer playground, not a secured multi-user admin dashboard.
+- WhatsApp/Telegram provider integration is not connected; it requires a chosen provider and its account credentials/webhook configuration.
+- Audio processing has not been validated against live provider credentials or all mobile voice-note codecs.
+- For production, add migrations, authentication, rate limiting, monitoring, and a persistent PostgreSQL service.
+
+## Environment
+
+See `.env.example` for AI, voice, upload, and database settings.
