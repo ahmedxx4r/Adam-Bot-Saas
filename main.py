@@ -44,10 +44,12 @@ async def voice_chat(audio: UploadFile = File(...)):
 
     allowed_types = {
         "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
-        "audio/mp4", "audio/m4a", "audio/ogg", "audio/webm",
+        "audio/mp4", "audio/m4a", "audio/x-m4a", "audio/ogg",
+        "audio/webm", "audio/aac", "audio/3gpp",
         "application/octet-stream",
     }
-    if audio.content_type and audio.content_type not in allowed_types:
+    content_type = (audio.content_type or "").split(";", 1)[0].strip().lower()
+    if content_type and content_type not in allowed_types:
         raise HTTPException(status_code=415, detail="Unsupported audio content type")
 
     try:
