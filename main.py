@@ -109,9 +109,10 @@ def register(payload: AuthRequest):
         user = User(email=email, password_hash=hash_password(payload.password))
         db.add(user)
         try:
+            db.flush()
+            response = auth_response(user)  # Validate signing configuration before committing.
             db.commit()
-            db.refresh(user)
-            return auth_response(user)
+            return response
         except IntegrityError as exc:
             db.rollback()
             raise HTTPException(status_code=409, detail="An account with this email already exists") from exc
