@@ -1,5 +1,6 @@
 import logging
 from io import BytesIO
+from urllib.parse import quote
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import Response
@@ -53,13 +54,15 @@ async def voice_chat(audio: UploadFile = File(...)):
         data = await audio.read(settings.max_upload_bytes + 1)
         if len(data) > settings.max_upload_bytes:
             raise HTTPException(status_code=413, detail="Audio file is too large")
-        result = get_voice_handler().process_audio(BytesIO(data))
+        audio_stream = BytesIO(data)
+        audio_stream.name = audio.filename
+        result = get_voice_handler().process_audio(audio_stream)
         return Response(
             content=result["audio"],
             media_type="audio/mpeg",
             headers={
-                "X-Adam-Transcript": result["transcript"][:500],
-                "X-Adam-Reply": result["reply"][:500],
+                "X-Adam-Transcript": quote(result["transcript"][:500]),
+                "X-Adam-Reply": quote(result["reply"][:500]),
                 "Content-Disposition": 'inline; filename="adam_reply.mp3"',
             },
         )
