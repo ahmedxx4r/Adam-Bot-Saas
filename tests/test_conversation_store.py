@@ -1,14 +1,17 @@
-import time
-
 from conversation_store import ConversationStore
+from database import Base, engine
+
+
+def setup_function():
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
 
 
 def test_history_is_saved_and_trimmed():
-    store = ConversationStore(ttl_seconds=60, max_sessions=10, max_messages=2)
+    store = ConversationStore(max_messages=2)
     store.add_turn("s1", "hello", "hi")
     store.add_turn("s1", "how are you?", "great")
-    history = store.get_history("s1")
-    assert history == [
+    assert store.get_history("s1") == [
         {"role": "user", "content": "how are you?"},
         {"role": "assistant", "content": "great"},
     ]
@@ -21,8 +24,9 @@ def test_clear_session():
     assert store.get_history("s1") == []
 
 
-def test_expired_session_is_removed():
-    store = ConversationStore(ttl_seconds=0)
-    store.add_turn("s1", "hello", "hi")
-    time.sleep(0.01)
-    assert store.get_history("s1") == []
+def test_history_persists_between_store_instances():
+    ConversationStore().add_turn("persistent", "remember me", "I will")
+    assert ConversationStore().get_history("persistent") == [
+        {"role": "user", "content": "remember me"},
+        {"role": "assistant", "content": "I will"},
+    ]
