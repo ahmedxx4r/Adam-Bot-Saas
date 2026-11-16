@@ -9,8 +9,10 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 
 from config import settings
+from database import engine
 from database import init_database
 from conversation_store import ConversationStore
 from voice_handler import VoiceHandler
@@ -71,7 +73,19 @@ def dashboard():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "adam-voice-api", "version": app.version}
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+        database_status = "ok"
+    except Exception:
+        logger.exception("Database health check failed")
+        database_status = "error"
+    return {
+        "status": "ok" if database_status == "ok" else "degraded",
+        "database": database_status,
+        "service": "adam-voice-api",
+        "version": app.version,
+    }
 
 
 @app.post("/voice/chat")
