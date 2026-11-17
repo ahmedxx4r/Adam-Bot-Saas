@@ -1,5 +1,5 @@
 from database import Base, SessionLocal, engine
-from database_models import User, WhatsAppIdentity
+from database_models import User, WebhookEvent, WhatsAppIdentity
 from integrations.whatsapp_identity import WhatsAppIdentityService
 from webhook_store import WebhookEventStore
 
@@ -80,4 +80,12 @@ def test_worker_claims_only_linked_pending_events_once():
     event_id = store.claim_next()
     assert event_id == result["event_ids"][0]
     assert store.get(event_id)["status"] == "processing"
+    store.set_status(event_id, "failed")
+    assert store.claim_next() is None  # Exponential retry delay is active.
+    with SessionLocal() as db:
+        row = db.get(WebhookEvent, event_id)
+        row.next_attempt_at_unix = 0  # Simulate the retry delay expiring.
+        db.commit()
+    assert store.claim_next() == event_id
+    assert store.get(event_id)["attempts"] == 2
     assert store.claim_next() is None
