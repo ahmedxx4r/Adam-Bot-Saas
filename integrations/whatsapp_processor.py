@@ -18,9 +18,10 @@ events = WebhookEventStore()
 tasks = TaskStore()
 
 
-async def process_whatsapp_event(event_id: int) -> None:
+async def process_whatsapp_event(event_id: int, already_claimed: bool = False) -> None:
     event = events.get(event_id)
-    if event is None or event["status"] != "received":
+    allowed_statuses = {"processing"} if already_claimed else {"received"}
+    if event is None or event["status"] not in allowed_statuses:
         return
     if event["user_id"] is None:
         events.set_status(event_id, "ignored")
@@ -29,7 +30,8 @@ async def process_whatsapp_event(event_id: int) -> None:
     if payload.get("link_verification") == "verified":
         events.set_status(event_id, "processed")
         return
-    events.set_status(event_id, "processing")
+    if not already_claimed:
+        events.set_status(event_id, "processing")
     try:
         if event["event_type"] == "text":
             instruction = (payload.get("text") or "").strip()
