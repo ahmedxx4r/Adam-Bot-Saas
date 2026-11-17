@@ -3,6 +3,7 @@
 import json
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from database import SessionLocal
 from database_models import WebhookEvent
@@ -31,8 +32,13 @@ class WebhookEventStore:
                     payload=json.dumps(event, ensure_ascii=False),
                     status="received",
                 )
-                db.add(record)
-                db.flush()
+                try:
+                    with db.begin_nested():
+                        db.add(record)
+                        db.flush()
+                except IntegrityError:
+                    duplicates += 1
+                    continue
                 saved_ids.append(record.id)
                 inserted += 1
             db.commit()
