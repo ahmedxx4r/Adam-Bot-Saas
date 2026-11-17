@@ -2,7 +2,7 @@
 
 import json
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
 from database import SessionLocal
@@ -44,6 +44,25 @@ class WebhookEventStore:
                 inserted += 1
             db.commit()
         return {"inserted": inserted, "duplicates": duplicates, "event_ids": saved_ids}
+
+    def claim_next(self) -> int | None:
+        """Atomically claim one pending linked event for a durable worker."""
+        with SessionLocal() as db:
+            candidate = db.scalar(
+                select(WebhookEvent.id)
+                .where(WebhookEvent.status == "received", WebhookEvent.user_id.is_not(None))
+                .order_by(WebhookEvent.created_at.asc())
+                .limit(1)
+            )
+            if candidate is None:
+                return None
+            result = db.execute(
+                update(WebhookEvent)
+                .where(WebhookEvent.id == candidate, WebhookEvent.status == "received")
+                .values(status="processing")
+            )
+            db.commit()
+            return candidate if result.rowcount == 1 else None
 
     def get(self, event_id: int) -> dict | None:
         with SessionLocal() as db:
