@@ -54,7 +54,7 @@ Open the developer playground at `/` and API docs at `/docs`.
 | POST | `/agent/plan` | Understand a request and return a proposed plan without executing it |
 | POST | `/agent/tasks` | Plan and save an account-scoped task draft |
 | GET | `/webhooks/whatsapp` | Verify Meta webhook subscription challenge |
-| POST | `/webhooks/whatsapp` | Verify Meta signature and normalize inbound text/audio events |
+| POST | `/webhooks/whatsapp` | Verify Meta signature, normalize, persist, and deduplicate inbound text/audio events |
 | GET | `/tasks` | List the current user's tasks |
 | GET | `/tasks/{task_id}` | Get one task owned by the current user |
 | PATCH | `/tasks/{task_id}/details` | Supply missing details and move a task to confirmation when complete |
@@ -92,7 +92,7 @@ Reuse the same session ID to share context between voice and text.
 
 - Agent planning is implemented, but external tools are not executed yet. Planning endpoints explicitly do not place calls, send messages, or confirm reservations.
 - Tasks can be saved and tracked, but no background worker or tool-execution queue is connected yet.
-- WhatsApp webhook verification and inbound text/audio event normalization are implemented. A Meta Cloud API transport adapter supports media download, text delivery, and OGG/Opus voice-note delivery (including MP3 conversion through FFmpeg); live use still requires Meta developer setup, a public webhook URL, and credentials. Automatic inbound-to-agent orchestration is not connected yet.
+- WhatsApp webhook verification, inbound text/audio normalization, durable event storage, and duplicate-delivery protection are implemented. A Meta Cloud API transport adapter supports media download, text delivery, and OGG/Opus voice-note delivery (including MP3 conversion through FFmpeg); live use still requires Meta developer setup, a public webhook URL, and credentials. Automatic inbound-to-agent orchestration is not connected yet.
 - No PSTN/SIP carrier is connected. Real calls require an approved provider, phone routing, and account configuration.
 - The root page remains a developer playground, not a complete admin dashboard.
 - Audio processing has not been validated against live provider credentials or all mobile voice-note codecs.
