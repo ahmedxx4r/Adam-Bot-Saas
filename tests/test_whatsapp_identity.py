@@ -88,4 +88,10 @@ def test_worker_claims_only_linked_pending_events_once():
         db.commit()
     assert store.claim_next() == event_id
     assert store.get(event_id)["attempts"] == 2
+    with SessionLocal() as db:
+        row = db.get(WebhookEvent, event_id)
+        row.processing_started_at_unix = 0  # Simulate a worker crash with an expired lease.
+        db.commit()
+    assert store.claim_next() == event_id
+    assert store.get(event_id)["attempts"] == 3
     assert store.claim_next() is None
