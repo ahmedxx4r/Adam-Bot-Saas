@@ -1,6 +1,7 @@
 """Persistence and deduplication for inbound provider webhook events."""
 
 import json
+import time
 
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
@@ -50,7 +51,12 @@ class WebhookEventStore:
         with SessionLocal() as db:
             candidate = db.scalar(
                 select(WebhookEvent.id)
-                .where(WebhookEvent.status == "received", WebhookEvent.user_id.is_not(None))
+                .where(
+                    WebhookEvent.status.in_({"received", "failed"}),
+                    WebhookEvent.user_id.is_not(None),
+                    WebhookEvent.attempts < 5,
+                    WebhookEvent.next_attempt_at_unix <= int(time.time()),
+                )
                 .order_by(WebhookEvent.created_at.asc())
                 .limit(1)
             )
@@ -59,7 +65,7 @@ class WebhookEventStore:
             result = db.execute(
                 update(WebhookEvent)
                 .where(WebhookEvent.id == candidate, WebhookEvent.status == "received")
-                .values(status="processing")
+                .values(status="processing", attempts=WebhookEvent.attempts + 1)
             )
             db.commit()
             return candidate if result.rowcount == 1 else None
@@ -84,6 +90,9 @@ class WebhookEventStore:
             row = db.get(WebhookEvent, event_id)
             if row is not None:
                 row.status = status
+                if status == "failed":
+                    delay = min(30 * (2 ** max(row.attempts - 1, 0)), 900)
+                    row.next_attempt_at_unix = int(time.time()) + delay
                 db.commit()
     def list_recent(self, limit: int = 100) -> list[dict]:
         with SessionLocal() as db:
@@ -99,7 +108,7 @@ class WebhookEventStore:
                     "user_id": row.user_id,
                     "event_type": row.event_type,
                     "payload": json.loads(row.payload),
-                    "status": row.status,
+                    "status": row.status, "attempts": row.attempts,
                     "created_at": row.created_at.isoformat() if row.created_at else None,
                 }
                 for row in rows
