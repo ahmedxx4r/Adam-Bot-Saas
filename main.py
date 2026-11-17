@@ -13,6 +13,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 
 from auth import create_access_token, get_current_user, hash_password, verify_password
+from agent_core import AgentPlanner
 from config import settings
 from database import SessionLocal, engine, init_database
 from database_models import User
@@ -33,7 +34,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Adam Voice API",
     description="Authenticated, persistent voice and text assistant API for Adam.",
-    version="1.4.0",
+    version="1.5.0",
     lifespan=lifespan,
 )
 
@@ -69,6 +70,11 @@ class CreateTaskRequest(BaseModel):
     instruction: str = Field(min_length=3, max_length=12000)
     task_type: str = Field(default="general", max_length=64)
     details: dict = Field(default_factory=dict)
+
+
+class AgentPlanRequest(BaseModel):
+    instruction: str = Field(min_length=3, max_length=12000)
+    session_id: str | None = Field(default=None, max_length=128)
 
 
 class TaskStatusRequest(BaseModel):
@@ -145,6 +151,57 @@ def login(payload: AuthRequest):
 @app.get("/auth/me")
 def me(user: User = Depends(get_current_user)):
     return {"user_id": user.id, "email": user.email}
+
+
+@app.post("/agent/plan")
+def plan_agent_task(payload: AgentPlanRequest, user: User = Depends(get_current_user)):
+    """Understand a request and return a proposed plan without executing actions."""
+    try:
+        plan = AgentPlanner().plan(payload.instruction.strip())
+        return {
+            **plan,
+            "execution_started": False,
+            "notice": "Planning only. No external call, message, booking, or purchase was made.",
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Agent planning failed")
+        raise HTTPException(status_code=503, detail="Agent planner is unavailable") from exc
+
+
+@app.post("/agent/tasks", status_code=201)
+def create_agent_task(payload: AgentPlanRequest, user: User = Depends(get_current_user)):
+    """Plan a request and save it as a draft awaiting details or user confirmation."""
+    try:
+        plan = AgentPlanner().plan(payload.instruction.strip())
+        initial_status = "awaiting_user_input" if plan["missing_fields"] else "awaiting_confirmation"
+        task = tasks.create(
+            user_id=user.id,
+            input_text=payload.instruction.strip(),
+            task_type=plan["task_type"],
+            extracted_data={
+                **plan["extracted_data"],
+                "summary": plan["summary"],
+                "missing_fields": plan["missing_fields"],
+                "clarification_question": plan["clarification_question"],
+                "proposed_steps": plan["proposed_steps"],
+                "requires_confirmation": plan["requires_confirmation"],
+                "safe_to_execute": False,
+            },
+            initial_status=initial_status,
+        )
+        return {
+            "task": task,
+            "plan": plan,
+            "execution_started": False,
+            "notice": "Task saved only. No external action was executed.",
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Agent task creation failed")
+        raise HTTPException(status_code=503, detail="Agent planner is unavailable") from exc
 
 
 @app.post("/tasks", status_code=201)
