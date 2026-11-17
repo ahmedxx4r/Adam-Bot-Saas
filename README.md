@@ -99,7 +99,7 @@ Reuse the same session ID to share context between voice and text.
 - SQLite is used by default and creates `adam.db` automatically.
 - Set `DATABASE_URL` to use PostgreSQL.
 - Conversation history expires after 30 days of inactivity and retains the latest 24 messages per session.
-- Run database migrations before deploying schema changes to an established production database; the current bootstrap creates missing tables but does not migrate existing schemas.
+- Startup creates missing tables and applies a small additive compatibility migration for webhook event columns introduced in later versions. For broader production schema evolution, use a versioned migration system such as Alembic.
 
 ## WhatsApp account linking
 
