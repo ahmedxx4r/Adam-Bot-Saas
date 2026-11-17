@@ -64,10 +64,10 @@ The repository includes a local multi-service stack: PostgreSQL, the FastAPI ser
 
 ## Accounts and authentication
 
-- Create an account with `POST /auth/register` using an email and a password of at least 10 characters.
+- Create an account with `POST /auth/register` using an email and a password of at least 10 characters. Email addresses are normalized to lowercase.
 - Sign in with `POST /auth/login`; both endpoints return a 24-hour bearer token.
 - Send `Authorization: Bearer <token>` with text chat, voice chat, and session deletion requests.
-- Set `AUTH_SECRET_KEY` to a cryptographically random value of at least 32 characters. Authentication endpoints remain unavailable until it is configured.
+- Set `AUTH_SECRET_KEY` to a cryptographically random value of at least 32 characters. Authentication endpoints remain unavailable until it is configured. Changing this secret invalidates existing bearer tokens.
 - Conversation storage IDs are scoped by authenticated account, so users cannot read another account's history by guessing a session ID.
 
 ## API
@@ -124,17 +124,17 @@ Reuse the same session ID to share context between voice and text.
 3. Send that code from the same WhatsApp account to the connected Adam business number.
 4. Meta's signed webhook confirms the sender number and links it to the signed-in Adam account. Codes expire after 10 minutes and are not retained in webhook event logs.
 
-Inbound events are persisted and deduplicated. They are associated with a user only after the phone number is verified. Linked text messages are sent to the AI planner in a FastAPI background task; linked audio messages are downloaded, transcribed, and planned. Adam saves a task draft and can send a clarification/acknowledgement over WhatsApp. No external task action is executed.
+Inbound events are persisted and deduplicated. They are associated with a user only after the phone number is verified. Linked text and audio messages are consumed by the separate durable worker. Audio is downloaded and transcribed before planning. Adam saves an account-scoped task draft and can send a clarification/acknowledgement over WhatsApp. No external task action is executed.
 
 ## Current limitations
 
 - Agent planning is implemented, but external tools are not executed yet. Planning endpoints explicitly do not place calls, send messages, or confirm reservations.
 - The WhatsApp event queue is database-backed with atomic claims and bounded exponential retries. Events that exhaust five attempts remain failed for inspection; production still needs a dead-letter review workflow, worker monitoring, and possibly a managed queue at higher volume.
-- WhatsApp webhook verification, inbound text/audio normalization, durable event storage, duplicate-delivery protection, one-time account/phone linking, and safe inbound-to-agent task drafting are implemented. A Meta Cloud API transport adapter supports media download, text delivery, and OGG/Opus voice-note delivery (including MP3 conversion through FFmpeg); live use still requires Meta developer setup, a public webhook URL, and credentials. Automatic inbound-to-agent orchestration is not connected yet.
+- WhatsApp webhook verification, inbound text/audio normalization, durable event storage, duplicate-delivery protection, one-time account/phone linking, and worker-driven inbound-to-agent task drafting are implemented. A Meta Cloud API transport adapter supports media download, text delivery, and OGG/Opus voice-note delivery (including MP3 conversion through FFmpeg); live use still requires Meta developer setup, a public webhook URL, and credentials.
 - No PSTN/SIP carrier is connected. Real calls require an approved provider, phone routing, and account configuration.
 - The root page remains a developer playground, not a complete admin dashboard.
 - Audio processing has not been validated against live provider credentials or all mobile voice-note codecs.
-- For production, add database migrations, rate limiting, monitoring, usage controls, and a persistent PostgreSQL service.
+- For production, add versioned database migrations, distributed rate limiting, monitoring/alerting, usage controls, backup/restore procedures, and a dead-letter review workflow. The current API does not yet enforce login/register rate limits.
 
 ## Environment
 
