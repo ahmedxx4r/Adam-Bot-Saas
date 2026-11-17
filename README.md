@@ -46,6 +46,22 @@ The worker polls persisted webhook events and atomically claims each event so mu
 
 Open the developer playground at `/` and API docs at `/docs`.
 
+## Docker Compose deployment
+
+The repository includes a local multi-service stack: PostgreSQL, the FastAPI service, and the separate WhatsApp worker.
+
+1. Create a local `.env` file (never commit it) and set the required variables. Generate secrets with:
+
+   `openssl rand -hex 32`
+
+   Use one generated value for `AUTH_SECRET_KEY` and another for `POSTGRES_PASSWORD`. Keep the database password URL-safe (hex is suitable).
+2. Set `OPENAI_API_KEY`. Add ElevenLabs and Meta WhatsApp variables when those channels are configured.
+3. Start the stack:
+
+   `docker compose up --build -d`
+4. Open `http://localhost:8000`; API docs are at `/docs`.
+5. Stop the stack with `docker compose down`. Persistent PostgreSQL data remains in the named volume; use `docker compose down -v` only when you intentionally want to delete it.
+
 ## Accounts and authentication
 
 - Create an account with `POST /auth/register` using an email and a password of at least 10 characters.
