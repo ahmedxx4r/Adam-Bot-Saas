@@ -64,7 +64,7 @@ class WebhookEventStore:
                 return None
             result = db.execute(
                 update(WebhookEvent)
-                .where(WebhookEvent.id == candidate, WebhookEvent.status == "received")
+                .where(WebhookEvent.id == candidate, WebhookEvent.status.in_({"received", "failed"}), WebhookEvent.attempts < 5)
                 .values(status="processing", attempts=WebhookEvent.attempts + 1)
             )
             db.commit()
@@ -80,7 +80,7 @@ class WebhookEventStore:
                 "provider_message_id": row.provider_message_id,
                 "sender": row.sender, "user_id": row.user_id,
                 "event_type": row.event_type, "payload": json.loads(row.payload),
-                "status": row.status,
+                "status": row.status, "attempts": row.attempts,
             }
 
     def set_status(self, event_id: int, status: str) -> None:
