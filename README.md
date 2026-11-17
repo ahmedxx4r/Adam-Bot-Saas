@@ -42,7 +42,7 @@ In a second process/container, start the durable WhatsApp event worker:
 python worker.py
 ```
 
-The worker polls persisted webhook events and atomically claims each event so multiple worker instances do not process the same event concurrently. Set `WORKER_POLL_SECONDS` to adjust polling frequency (minimum 1 second).
+The worker polls persisted webhook events and atomically claims each event so multiple worker instances do not process the same event concurrently. Failed events are retried up to five attempts with exponential backoff (30 seconds up to 15 minutes). Set `WORKER_POLL_SECONDS` to adjust polling frequency (minimum 1 second).
 
 Open the developer playground at `/` and API docs at `/docs`.
 
@@ -111,7 +111,7 @@ Inbound events are persisted and deduplicated. They are associated with a user o
 ## Current limitations
 
 - Agent planning is implemented, but external tools are not executed yet. Planning endpoints explicitly do not place calls, send messages, or confirm reservations.
-- The WhatsApp event queue is database-backed and a separate polling worker is included. For high-volume production, add retry/backoff policies, dead-letter handling, worker monitoring, and a managed queue such as Redis/Celery or a cloud queue.
+- The WhatsApp event queue is database-backed with atomic claims and bounded exponential retries. Events that exhaust five attempts remain failed for inspection; production still needs a dead-letter review workflow, worker monitoring, and possibly a managed queue at higher volume.
 - WhatsApp webhook verification, inbound text/audio normalization, durable event storage, duplicate-delivery protection, one-time account/phone linking, and safe inbound-to-agent task drafting are implemented. A Meta Cloud API transport adapter supports media download, text delivery, and OGG/Opus voice-note delivery (including MP3 conversion through FFmpeg); live use still requires Meta developer setup, a public webhook URL, and credentials. Automatic inbound-to-agent orchestration is not connected yet.
 - No PSTN/SIP carrier is connected. Real calls require an approved provider, phone routing, and account configuration.
 - The root page remains a developer playground, not a complete admin dashboard.
