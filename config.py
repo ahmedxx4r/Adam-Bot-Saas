@@ -26,6 +26,9 @@ class Settings:
         self.max_upload_bytes = int(os.getenv("MAX_UPLOAD_BYTES", str(20 * 1024 * 1024)))
         self.whatsapp_app_secret = os.getenv("WHATSAPP_APP_SECRET", "")
         self.whatsapp_verify_token = os.getenv("WHATSAPP_VERIFY_TOKEN", "")
+        self.whatsapp_access_token = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+        self.whatsapp_phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+        self.whatsapp_graph_api_version = os.getenv("WHATSAPP_GRAPH_API_VERSION", "v23.0")
 
     def validate_voice_settings(self):
         missing = [
