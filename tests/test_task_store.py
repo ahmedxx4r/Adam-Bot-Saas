@@ -41,6 +41,8 @@ def test_task_cannot_skip_confirmation_or_be_changed_by_another_user():
 def test_missing_details_move_task_to_confirmation():
     store = TaskStore()
     task = store.create(1, "Book a table", extracted_data={"missing_fields": ["date"]}, initial_status="awaiting_user_input")
+    with pytest.raises(ValueError):
+        store.transition(1, task["id"], "awaiting_confirmation")
     updated = store.update_details(1, task["id"], {"date": "tomorrow"}, missing_fields=[])
     assert updated["status"] == "awaiting_confirmation"
     assert updated["extracted_data"]["date"] == "tomorrow"
