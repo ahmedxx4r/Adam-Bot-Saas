@@ -11,7 +11,7 @@ from sqlalchemy import select
 from database import SessionLocal
 from database_models import AgentTask
 
-TASK_STATUSES = {"draft", "awaiting_confirmation", "queued", "running", "completed", "failed", "cancelled", "needs_human"}
+TASK_STATUSES = {"draft", "awaiting_confirmation", "confirmed", "queued", "running", "completed", "failed", "cancelled", "needs_human"}
 TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
 
 
@@ -71,7 +71,8 @@ class TaskStore:
                 raise ValueError("Terminal tasks cannot be changed")
             allowed = {
                 "awaiting_user_input": {"cancelled"},
-                "awaiting_confirmation": {"queued", "cancelled"},
+                "awaiting_confirmation": {"confirmed", "cancelled"},
+                "confirmed": {"queued", "cancelled"},
                 "queued": {"running", "cancelled"},
                 "running": {"completed", "failed", "needs_human", "cancelled"},
                 "needs_human": {"queued", "cancelled"},
