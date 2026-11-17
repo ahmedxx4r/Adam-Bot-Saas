@@ -5,7 +5,7 @@ Adam is a Python API for voice and text conversations, with persistent conversat
 ## Features
 
 - OpenAI speech transcription, chat responses, and structured task planning.
-- ElevenLabs MP3 speech generation.
+- ElevenLabs MP3 speech generation, with optional FFmpeg MP3 → OGG/Opus conversion for WhatsApp voice notes.
 - Shared context across voice and text messages.
 - Persistent SQL conversation and account-scoped agent task storage (SQLite by default; PostgreSQL supported).
 - Conversation expiration and bounded message history.
@@ -92,7 +92,7 @@ Reuse the same session ID to share context between voice and text.
 
 - Agent planning is implemented, but external tools are not executed yet. Planning endpoints explicitly do not place calls, send messages, or confirm reservations.
 - Tasks can be saved and tracked, but no background worker or tool-execution queue is connected yet.
-- WhatsApp webhook verification and inbound text/audio event normalization are implemented. A Meta Cloud API transport adapter now supports media download, text delivery, and OGG voice-note delivery; live use still requires Meta developer setup, a public webhook URL, and credentials. Automatic inbound-to-agent orchestration is not connected yet.
+- WhatsApp webhook verification and inbound text/audio event normalization are implemented. A Meta Cloud API transport adapter supports media download, text delivery, and OGG/Opus voice-note delivery (including MP3 conversion through FFmpeg); live use still requires Meta developer setup, a public webhook URL, and credentials. Automatic inbound-to-agent orchestration is not connected yet.
 - No PSTN/SIP carrier is connected. Real calls require an approved provider, phone routing, and account configuration.
 - The root page remains a developer playground, not a complete admin dashboard.
 - Audio processing has not been validated against live provider credentials or all mobile voice-note codecs.
