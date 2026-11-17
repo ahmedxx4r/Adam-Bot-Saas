@@ -92,7 +92,7 @@ Reuse the same session ID to share context between voice and text.
 
 - Agent planning is implemented, but external tools are not executed yet. Planning endpoints explicitly do not place calls, send messages, or confirm reservations.
 - Tasks can be saved and tracked, but no background worker or tool-execution queue is connected yet.
-- WhatsApp webhook verification and inbound text/audio event normalization are implemented. Media download, AI processing, and outbound voice-note delivery still require Meta developer setup, a public webhook URL, and credentials.
+- WhatsApp webhook verification and inbound text/audio event normalization are implemented. A Meta Cloud API transport adapter now supports media download, text delivery, and OGG voice-note delivery; live use still requires Meta developer setup, a public webhook URL, and credentials. Automatic inbound-to-agent orchestration is not connected yet.
 - No PSTN/SIP carrier is connected. Real calls require an approved provider, phone routing, and account configuration.
 - The root page remains a developer playground, not a complete admin dashboard.
 - Audio processing has not been validated against live provider credentials or all mobile voice-note codecs.
