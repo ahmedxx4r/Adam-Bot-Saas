@@ -287,6 +287,17 @@ def create_whatsapp_link(payload: WhatsAppLinkRequest, user: User = Depends(get_
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
+@app.get("/integrations/whatsapp/me")
+def get_whatsapp_link(user: User = Depends(get_current_user)):
+    return {"linked": bool(whatsapp_identities.linked_phone_for_user(user.id)), "phone": whatsapp_identities.linked_phone_for_user(user.id)}
+
+
+@app.delete("/integrations/whatsapp/link")
+def delete_whatsapp_link(user: User = Depends(get_current_user)):
+    removed = whatsapp_identities.unlink_user(user.id)
+    return {"unlinked": removed}
+
+
 @app.get("/webhooks/whatsapp")
 def verify_whatsapp_webhook(
     hub_mode: str | None = Query(default=None, alias="hub.mode"),
