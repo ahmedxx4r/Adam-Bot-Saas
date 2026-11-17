@@ -3,6 +3,7 @@
 import httpx
 
 from config import settings
+from integrations.audio import mp3_to_ogg_opus
 
 
 class MetaWhatsAppClient:
@@ -89,3 +90,8 @@ class MetaWhatsAppClient:
             if not messages:
                 raise RuntimeError("Meta did not return a WhatsApp message ID")
             return messages[0]["id"]
+
+    async def send_voice_note_from_mp3(self, to_number: str, mp3_bytes: bytes) -> str:
+        """Convert Adam TTS MP3 output and deliver it as a WhatsApp voice note."""
+        ogg_bytes = mp3_to_ogg_opus(mp3_bytes)
+        return await self.send_voice_note(to_number, ogg_bytes, filename="adam-reply.ogg", mime_type="audio/ogg")
