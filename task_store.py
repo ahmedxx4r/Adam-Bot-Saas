@@ -68,7 +68,7 @@ class TaskStore:
             if task.status in TERMINAL_STATUSES:
                 raise ValueError("Terminal tasks cannot be changed")
             allowed = {
-                "awaiting_user_input": {"awaiting_confirmation", "cancelled"},
+                "awaiting_user_input": {"cancelled"},
                 "awaiting_confirmation": {"queued", "cancelled"},
                 "queued": {"running", "cancelled"},
                 "running": {"completed", "failed", "needs_human", "cancelled"},
