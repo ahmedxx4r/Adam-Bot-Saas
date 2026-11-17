@@ -4,10 +4,10 @@ Adam is a Python API for voice and text conversations, with persistent conversat
 
 ## Features
 
-- OpenAI speech transcription and chat responses.
+- OpenAI speech transcription, chat responses, and structured task planning.
 - ElevenLabs MP3 speech generation.
 - Shared context across voice and text messages.
-- Persistent SQL conversation storage (SQLite by default; PostgreSQL supported).
+- Persistent SQL conversation and account-scoped agent task storage (SQLite by default; PostgreSQL supported).
 - Conversation expiration and bounded message history.
 - Docker runtime and automated test workflow.
 - Browser-based developer playground at `/`; interactive API docs at `/docs`.
@@ -51,6 +51,11 @@ Open the developer playground at `/` and API docs at `/docs`.
 | GET | `/` | Developer playground |
 | GET | `/health` | Health check |
 | POST | `/voice/chat` | Audio in, MP3 out |
+| POST | `/agent/plan` | Understand a request and return a proposed plan without executing it |
+| POST | `/agent/tasks` | Plan and save an account-scoped task draft |
+| GET | `/tasks` | List the current user's tasks |
+| GET | `/tasks/{task_id}` | Get one task owned by the current user |
+| PATCH | `/tasks/{task_id}/status` | Move a task through allowed lifecycle states |
 | POST | `/text/chat` | Text in, text reply out |
 | DELETE | `/sessions/{session_id}` | Delete one conversation |
 
@@ -82,11 +87,13 @@ Reuse the same session ID to share context between voice and text.
 
 ## Current limitations
 
-- No account registration, authentication, per-user authorization, or billing/usage metering yet.
-- The root page is a developer playground, not a secured multi-user admin dashboard.
-- WhatsApp/Telegram provider integration is not connected; it requires a chosen provider and its account credentials/webhook configuration.
+- Agent planning is implemented, but external tools are not executed yet. Planning endpoints explicitly do not place calls, send messages, or confirm reservations.
+- Tasks can be saved and tracked, but no background worker or tool-execution queue is connected yet.
+- WhatsApp provider integration is not connected; it requires Meta developer setup, a test/business number, webhook URL, and credentials.
+- No PSTN/SIP carrier is connected. Real calls require an approved provider, phone routing, and account configuration.
+- The root page remains a developer playground, not a complete admin dashboard.
 - Audio processing has not been validated against live provider credentials or all mobile voice-note codecs.
-- For production, add migrations, authentication, rate limiting, monitoring, and a persistent PostgreSQL service.
+- For production, add database migrations, rate limiting, monitoring, usage controls, and a persistent PostgreSQL service.
 
 ## Environment
 
