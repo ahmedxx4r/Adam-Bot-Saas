@@ -30,9 +30,19 @@ Optional database configuration:
 
 ## Run
 
+Start the API:
+
 ```bash
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
+
+In a second process/container, start the durable WhatsApp event worker:
+
+```bash
+python worker.py
+```
+
+The worker polls persisted webhook events and atomically claims each event so multiple worker instances do not process the same event concurrently. Set `WORKER_POLL_SECONDS` to adjust polling frequency (minimum 1 second).
 
 Open the developer playground at `/` and API docs at `/docs`.
 
@@ -101,7 +111,7 @@ Inbound events are persisted and deduplicated. They are associated with a user o
 ## Current limitations
 
 - Agent planning is implemented, but external tools are not executed yet. Planning endpoints explicitly do not place calls, send messages, or confirm reservations.
-- WhatsApp background processing currently uses FastAPI in-process background tasks, not a durable queue. A production deployment should move this work to a persistent worker/queue before relying on it for guaranteed delivery.
+- The WhatsApp event queue is database-backed and a separate polling worker is included. For high-volume production, add retry/backoff policies, dead-letter handling, worker monitoring, and a managed queue such as Redis/Celery or a cloud queue.
 - WhatsApp webhook verification, inbound text/audio normalization, durable event storage, duplicate-delivery protection, one-time account/phone linking, and safe inbound-to-agent task drafting are implemented. A Meta Cloud API transport adapter supports media download, text delivery, and OGG/Opus voice-note delivery (including MP3 conversion through FFmpeg); live use still requires Meta developer setup, a public webhook URL, and credentials. Automatic inbound-to-agent orchestration is not connected yet.
 - No PSTN/SIP carrier is connected. Real calls require an approved provider, phone routing, and account configuration.
 - The root page remains a developer playground, not a complete admin dashboard.
