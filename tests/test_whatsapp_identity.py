@@ -95,3 +95,15 @@ def test_worker_claims_only_linked_pending_events_once():
     assert store.claim_next() == event_id
     assert store.get(event_id)["attempts"] == 3
     assert store.claim_next() is None
+
+
+def test_user_can_disconnect_linked_whatsapp_number(monkeypatch):
+    monkeypatch.setenv("AUTH_SECRET_KEY", "test-secret-that-is-at-least-32-characters")
+    user_id = create_user()
+    service = WhatsAppIdentityService()
+    challenge = service.create_challenge(user_id, "+201000000000")
+    service.verify_inbound_code("+201000000000", challenge["verification_code"])
+    assert service.linked_phone_for_user(user_id) == "+201000000000"
+    assert service.unlink_user(user_id) is True
+    assert service.linked_phone_for_user(user_id) is None
+    assert service.unlink_user(user_id) is False
