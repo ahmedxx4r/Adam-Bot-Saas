@@ -96,13 +96,13 @@ Reuse the same session ID to share context between voice and text.
 3. Send that code from the same WhatsApp account to the connected Adam business number.
 4. Meta's signed webhook confirms the sender number and links it to the signed-in Adam account. Codes expire after 10 minutes and are not retained in webhook event logs.
 
-Inbound events are persisted and deduplicated. They are associated with a user only after the phone number is verified. Automatic AI responses and task creation from inbound messages are still disabled pending the background processing pipeline.
+Inbound events are persisted and deduplicated. They are associated with a user only after the phone number is verified. Linked text messages are sent to the AI planner in a FastAPI background task; linked audio messages are downloaded, transcribed, and planned. Adam saves a task draft and can send a clarification/acknowledgement over WhatsApp. No external task action is executed.
 
 ## Current limitations
 
 - Agent planning is implemented, but external tools are not executed yet. Planning endpoints explicitly do not place calls, send messages, or confirm reservations.
-- Tasks can be saved and tracked, but no background worker or tool-execution queue is connected yet.
-- WhatsApp webhook verification, inbound text/audio normalization, durable event storage, duplicate-delivery protection, and one-time account/phone linking are implemented. A Meta Cloud API transport adapter supports media download, text delivery, and OGG/Opus voice-note delivery (including MP3 conversion through FFmpeg); live use still requires Meta developer setup, a public webhook URL, and credentials. Automatic inbound-to-agent orchestration is not connected yet.
+- WhatsApp background processing currently uses FastAPI in-process background tasks, not a durable queue. A production deployment should move this work to a persistent worker/queue before relying on it for guaranteed delivery.
+- WhatsApp webhook verification, inbound text/audio normalization, durable event storage, duplicate-delivery protection, one-time account/phone linking, and safe inbound-to-agent task drafting are implemented. A Meta Cloud API transport adapter supports media download, text delivery, and OGG/Opus voice-note delivery (including MP3 conversion through FFmpeg); live use still requires Meta developer setup, a public webhook URL, and credentials. Automatic inbound-to-agent orchestration is not connected yet.
 - No PSTN/SIP carrier is connected. Real calls require an approved provider, phone routing, and account configuration.
 - The root page remains a developer playground, not a complete admin dashboard.
 - Audio processing has not been validated against live provider credentials or all mobile voice-note codecs.
