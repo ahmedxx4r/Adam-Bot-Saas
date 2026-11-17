@@ -24,6 +24,8 @@ class Settings:
             "Reply in the same language as the user unless asked otherwise.",
         )
         self.max_upload_bytes = int(os.getenv("MAX_UPLOAD_BYTES", str(20 * 1024 * 1024)))
+        self.whatsapp_app_secret = os.getenv("WHATSAPP_APP_SECRET", "")
+        self.whatsapp_verify_token = os.getenv("WHATSAPP_VERIFY_TOKEN", "")
 
     def validate_voice_settings(self):
         missing = [
