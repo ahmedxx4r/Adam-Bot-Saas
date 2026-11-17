@@ -1,7 +1,9 @@
 import hashlib
 import hmac
 
+from database import Base, engine
 from integrations.whatsapp_webhook import normalize_webhook, verify_signature, verify_webhook_challenge
+from webhook_store import WebhookEventStore
 
 
 def test_meta_signature_verification():
@@ -32,3 +34,28 @@ def test_normalize_text_and_audio_messages_and_ignore_statuses():
     assert events[0]["text"] == "احجزلي مطعم"
     assert events[1]["media_id"] == "media-1"
     assert events[1]["event_type"] == "audio"
+
+
+def setup_function():
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+
+def test_webhook_events_are_persisted_and_duplicate_message_ids_are_ignored():
+    store = WebhookEventStore()
+    event = {
+        "provider": "meta",
+        "provider_message_id": "wamid.unique-1",
+        "sender": "201000000000",
+        "event_type": "text",
+        "text": "Hello Adam",
+    }
+    first = store.save_many([event])
+    second = store.save_many([event])
+    assert first["inserted"] == 1
+    assert first["duplicates"] == 0
+    assert second["inserted"] == 0
+    assert second["duplicates"] == 1
+    saved = store.list_recent()
+    assert len(saved) == 1
+    assert saved[0]["payload"]["text"] == "Hello Adam"
