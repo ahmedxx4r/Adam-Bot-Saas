@@ -3,7 +3,7 @@
 import json
 import time
 
-from sqlalchemy import select, update
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 from database import SessionLocal
@@ -47,25 +47,50 @@ class WebhookEventStore:
         return {"inserted": inserted, "duplicates": duplicates, "event_ids": saved_ids}
 
     def claim_next(self) -> int | None:
-        """Atomically claim one pending linked event for a durable worker."""
+        """Atomically claim pending work and recover leases abandoned by crashed workers."""
+        now = int(time.time())
+        stale_before = now - 900
+        retryable = and_(
+            WebhookEvent.status.in_({"received", "failed"}),
+            WebhookEvent.next_attempt_at_unix <= now,
+        )
+        abandoned = and_(
+            WebhookEvent.status == "processing",
+            WebhookEvent.processing_started_at_unix.is_not(None),
+            WebhookEvent.processing_started_at_unix <= stale_before,
+        )
         with SessionLocal() as db:
+            # A worker that crashed on its final attempt is moved to failed, not retried forever.
+            db.execute(
+                update(WebhookEvent)
+                .where(abandoned, WebhookEvent.attempts >= 5)
+                .values(status="failed", processing_started_at_unix=None)
+            )
             candidate = db.scalar(
                 select(WebhookEvent.id)
                 .where(
-                    WebhookEvent.status.in_({"received", "failed"}),
+                    or_(retryable, abandoned),
                     WebhookEvent.user_id.is_not(None),
                     WebhookEvent.attempts < 5,
-                    WebhookEvent.next_attempt_at_unix <= int(time.time()),
                 )
                 .order_by(WebhookEvent.created_at.asc())
                 .limit(1)
             )
             if candidate is None:
+                db.commit()
                 return None
             result = db.execute(
                 update(WebhookEvent)
-                .where(WebhookEvent.id == candidate, WebhookEvent.status.in_({"received", "failed"}), WebhookEvent.attempts < 5)
-                .values(status="processing", attempts=WebhookEvent.attempts + 1)
+                .where(
+                    WebhookEvent.id == candidate,
+                    WebhookEvent.attempts < 5,
+                    or_(retryable, abandoned),
+                )
+                .values(
+                    status="processing",
+                    attempts=WebhookEvent.attempts + 1,
+                    processing_started_at_unix=now,
+                )
             )
             db.commit()
             return candidate if result.rowcount == 1 else None
@@ -90,6 +115,10 @@ class WebhookEventStore:
             row = db.get(WebhookEvent, event_id)
             if row is not None:
                 row.status = status
+                if status == "processing":
+                    row.processing_started_at_unix = int(time.time())
+                else:
+                    row.processing_started_at_unix = None
                 if status == "failed":
                     delay = min(30 * (2 ** max(row.attempts - 1, 0)), 900)
                     row.next_attempt_at_unix = int(time.time()) + delay
