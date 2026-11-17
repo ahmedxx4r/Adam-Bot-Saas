@@ -45,6 +45,27 @@ class WebhookEventStore:
             db.commit()
         return {"inserted": inserted, "duplicates": duplicates, "event_ids": saved_ids}
 
+    def get(self, event_id: int) -> dict | None:
+        with SessionLocal() as db:
+            row = db.get(WebhookEvent, event_id)
+            if row is None:
+                return None
+            return {
+                "id": row.id, "provider": row.provider,
+                "provider_message_id": row.provider_message_id,
+                "sender": row.sender, "user_id": row.user_id,
+                "event_type": row.event_type, "payload": json.loads(row.payload),
+                "status": row.status,
+            }
+
+    def set_status(self, event_id: int, status: str) -> None:
+        if status not in {"received", "processing", "processed", "failed", "ignored"}:
+            raise ValueError("Invalid webhook event status")
+        with SessionLocal() as db:
+            row = db.get(WebhookEvent, event_id)
+            if row is not None:
+                row.status = status
+                db.commit()
     def list_recent(self, limit: int = 100) -> list[dict]:
         with SessionLocal() as db:
             rows = db.scalars(
