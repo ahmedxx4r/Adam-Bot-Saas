@@ -21,6 +21,7 @@ from task_store import TaskStore
 from conversation_store import ConversationStore
 from voice_handler import VoiceHandler
 from integrations.whatsapp_webhook import normalize_webhook, verify_signature, verify_webhook_challenge
+from integrations.whatsapp_identity import WhatsAppIdentityService
 from webhook_store import WebhookEventStore
 
 logging.basicConfig(level=logging.INFO)
@@ -36,7 +37,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Adam Voice API",
     description="Authenticated, persistent voice and text assistant API for Adam.",
-    version="1.8.0",
+    version="1.9.0",
     lifespan=lifespan,
 )
 
@@ -44,6 +45,7 @@ voice_handler = None
 conversations = ConversationStore()
 tasks = TaskStore()
 webhook_events = WebhookEventStore()
+whatsapp_identities = WhatsAppIdentityService()
 
 
 class AuthRequest(BaseModel):
@@ -83,6 +85,10 @@ class AgentPlanRequest(BaseModel):
 class TaskDetailsRequest(BaseModel):
     details: dict = Field(default_factory=dict)
     missing_fields: list[str] | None = None
+
+
+class WhatsAppLinkRequest(BaseModel):
+    phone: str = Field(min_length=9, max_length=16)
 
 
 class TaskStatusRequest(BaseModel):
@@ -271,6 +277,16 @@ def update_task_status(
     return task
 
 
+@app.post("/integrations/whatsapp/link")
+def create_whatsapp_link(payload: WhatsAppLinkRequest, user: User = Depends(get_current_user)):
+    """Create a short-lived code that the account owner must send from their WhatsApp number."""
+    try:
+        return whatsapp_identities.create_challenge(user.id, payload.phone)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
 @app.get("/webhooks/whatsapp")
 def verify_whatsapp_webhook(
     hub_mode: str | None = Query(default=None, alias="hub.mode"),
@@ -298,6 +314,14 @@ async def receive_whatsapp_webhook(request: Request):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Invalid JSON payload") from exc
     events = normalize_webhook(payload)
+    verified_links = 0
+    for event in events:
+        if event["event_type"] == "text" and event.get("text"):
+            link = whatsapp_identities.verify_inbound_code("+" + event["sender"], event["text"])
+            if link:
+                event["text"] = "[WhatsApp verification code redacted]"
+                event["link_verification"] = "verified"
+                verified_links += 1
     try:
         persistence = webhook_events.save_many(events)
     except Exception as exc:
@@ -308,6 +332,7 @@ async def receive_whatsapp_webhook(request: Request):
     return {
         "status": "accepted",
         "received": len(events),
+        "verified_links": verified_links,
         "persisted": persistence["inserted"],
         "duplicates": persistence["duplicates"],
         "event_ids": persistence["event_ids"],
