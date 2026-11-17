@@ -20,6 +20,8 @@ def test_task_is_created_and_owned_by_user():
 def test_task_lifecycle_requires_confirmation_and_tracks_result():
     store = TaskStore()
     task = store.create(1, "Call the restaurant")
+    approved = store.transition(1, task["id"], "confirmed")
+    assert approved["status"] == "confirmed"
     queued = store.transition(1, task["id"], "queued")
     assert queued["status"] == "queued"
     running = store.transition(1, task["id"], "running")
@@ -34,7 +36,7 @@ def test_task_cannot_skip_confirmation_or_be_changed_by_another_user():
     store = TaskStore()
     task = store.create(1, "Make a reservation")
     with pytest.raises(ValueError):
-        store.transition(1, task["id"], "running")
+        store.transition(1, task["id"], "confirmed")
     assert store.transition(2, task["id"], "cancelled") is None
 
 
