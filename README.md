@@ -57,6 +57,7 @@ Open the developer playground at `/` and API docs at `/docs`.
 | POST | `/webhooks/whatsapp` | Verify Meta signature and normalize inbound text/audio events |
 | GET | `/tasks` | List the current user's tasks |
 | GET | `/tasks/{task_id}` | Get one task owned by the current user |
+| PATCH | `/tasks/{task_id}/details` | Supply missing details and move a task to confirmation when complete |
 | PATCH | `/tasks/{task_id}/status` | Move a task through allowed lifecycle states |
 | POST | `/text/chat` | Text in, text reply out |
 | DELETE | `/sessions/{session_id}` | Delete one conversation |
