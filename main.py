@@ -5,7 +5,7 @@ from pathlib import Path
 from urllib.parse import quote
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
@@ -22,6 +22,7 @@ from conversation_store import ConversationStore
 from voice_handler import VoiceHandler
 from integrations.whatsapp_webhook import normalize_webhook, verify_signature, verify_webhook_challenge
 from integrations.whatsapp_identity import WhatsAppIdentityService
+from integrations.whatsapp_processor import process_whatsapp_event
 from webhook_store import WebhookEventStore
 
 logging.basicConfig(level=logging.INFO)
@@ -37,7 +38,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Adam Voice API",
     description="Authenticated, persistent voice and text assistant API for Adam.",
-    version="1.9.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -302,7 +303,7 @@ def verify_whatsapp_webhook(
 
 
 @app.post("/webhooks/whatsapp")
-async def receive_whatsapp_webhook(request: Request):
+async def receive_whatsapp_webhook(request: Request, background_tasks: BackgroundTasks):
     body = await request.body()
     if len(body) > 2 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Webhook payload is too large")
@@ -327,8 +328,10 @@ async def receive_whatsapp_webhook(request: Request):
     except Exception as exc:
         logger.exception("Could not persist WhatsApp webhook events")
         raise HTTPException(status_code=503, detail="Webhook event storage is temporarily unavailable") from exc
-    # Events are persisted and deduplicated. User routing and AI replies remain disabled
-    # until a WhatsApp sender has been securely linked to an Adam account.
+    # Only events from verified, linked phone numbers enter the background AI planner.
+    # The planner creates a draft and never executes external actions.
+    for event_id in persistence["event_ids"]:
+        background_tasks.add_task(process_whatsapp_event, event_id)
     return {
         "status": "accepted",
         "received": len(events),
