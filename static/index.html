@@ -43,6 +43,14 @@
     <div class="result"><h2>Agent plan</h2><pre id="agentPlan">Your task plan will appear here.</pre></div>
     <div class="result"><h2>Saved tasks</h2><div id="taskList" class="hint">Log in, then refresh to load your tasks.</div></div>
   </section>
+  <section class="card" style="margin-top:16px">
+    <h2>Connect your WhatsApp number</h2>
+    <p class="hint">Enter your number in international format, then send the one-time code from that WhatsApp account to your Adam business number. The code expires in 10 minutes.</p>
+    <label for="whatsappPhone">WhatsApp number (E.164)</label>
+    <input id="whatsappPhone" type="tel" placeholder="+201XXXXXXXXX" autocomplete="tel">
+    <button id="linkWhatsAppButton" onclick="createWhatsAppLink()">Generate verification code</button>
+    <pre id="whatsappLinkResult">Your WhatsApp linking status will appear here.</pre>
+  </section>
   <p class="hint" style="margin-top:24px">Developer playground — user accounts and account-scoped conversation sessions are enabled. This is not a full admin console.</p>
 </main>
 <script>
@@ -61,7 +69,16 @@ async function checkHealth(){const dot=document.getElementById('dot'),label=docu
 async function sendMessage(){const message=document.getElementById('message').value.trim(),button=document.getElementById('send'),reply=document.getElementById('reply');if(!token()){reply.textContent='Log in first.';return}if(!message){reply.textContent='Write a message first.';return}button.disabled=true;button.textContent='Adam is thinking…';reply.textContent='';try{const r=await fetch('/text/chat',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({message,session_id:sessionId()||null})});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Request failed');document.getElementById('session').value=d.session_id;reply.textContent=d.reply}catch(e){reply.textContent='Error: '+e.message}finally{button.disabled=false;button.textContent='Send message'}}
 async function sendVoice(){const file=document.getElementById('audio').files[0],button=document.getElementById('voiceSend'),transcript=document.getElementById('transcript'),error=document.getElementById('voiceError'),player=document.getElementById('audioReply');if(!token()){error.textContent='Log in first.';return}if(!file){error.textContent='Choose an audio file first.';return}const form=new FormData();form.append('audio',file);if(sessionId())form.append('session_id',sessionId());button.disabled=true;button.textContent='Adam is listening…';error.textContent='Processing voice…';player.hidden=true;try{const r=await fetch('/voice/chat',{method:'POST',headers:authHeaders(),body:form});if(!r.ok){const d=await r.json();throw new Error(d.detail||'Voice request failed')}const blob=await r.blob();if(player.dataset.url)URL.revokeObjectURL(player.dataset.url);const url=URL.createObjectURL(blob);player.src=url;player.dataset.url=url;player.hidden=false;document.getElementById('session').value=r.headers.get('X-Adam-Session-ID')||sessionId();transcript.textContent=decodeURIComponent(r.headers.get('X-Adam-Transcript')||'');error.textContent='Reply ready. Press play to listen.'}catch(e){error.textContent='Error: '+e.message}finally{button.disabled=false;button.textContent='Send voice message'}}
 
-async function createAgentTask(){
+
+async function createWhatsAppLink(){
+  const phone=document.getElementById('whatsappPhone').value.trim(),button=document.getElementById('linkWhatsAppButton'),out=document.getElementById('whatsappLinkResult');
+  if(!token()){out.textContent='Log in first.';return}if(!phone){out.textContent='Enter your phone number.';return}
+  button.disabled=true;button.textContent='Generating…';out.textContent='Creating a short-lived verification code…';
+  try{const r=await fetch('/integrations/whatsapp/link',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({phone})});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Could not create link code');
+    out.textContent='Number: '+d.phone+'\nVerification code: '+d.verification_code+'\nExpires in: 10 minutes\n\nNow send this exact 8-digit code from that WhatsApp account to your Adam business number. The number is linked only after Meta delivers the message from the matching sender.';
+  }catch(e){out.textContent='Error: '+e.message}finally{button.disabled=false;button.textContent='Generate verification code'}
+}
+\nasync function createAgentTask(){
   const instruction=document.getElementById('taskInstruction').value.trim(),button=document.getElementById('planTaskButton'),out=document.getElementById('agentPlan');
   if(!token()){out.textContent='Log in first.';return}if(instruction.length<3){out.textContent='Write a task first.';return}
   button.disabled=true;button.textContent='Planning…';out.textContent='Adam is understanding the request…';
