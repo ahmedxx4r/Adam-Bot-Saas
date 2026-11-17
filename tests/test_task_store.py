@@ -36,7 +36,7 @@ def test_task_cannot_skip_confirmation_or_be_changed_by_another_user():
     store = TaskStore()
     task = store.create(1, "Make a reservation")
     with pytest.raises(ValueError):
-        store.transition(1, task["id"], "confirmed")
+        store.transition(1, task["id"], "running")
     assert store.transition(2, task["id"], "cancelled") is None
 
 
