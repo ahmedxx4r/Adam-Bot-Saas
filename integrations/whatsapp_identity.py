@@ -87,3 +87,19 @@ class WhatsAppIdentityService:
         with SessionLocal() as db:
             identity = db.scalar(select(WhatsAppIdentity).where(WhatsAppIdentity.phone == phone))
             return identity.user_id if identity else None
+
+
+    def linked_phone_for_user(self, user_id: int) -> str | None:
+        with SessionLocal() as db:
+            identity = db.scalar(select(WhatsAppIdentity).where(WhatsAppIdentity.user_id == user_id))
+            return identity.phone if identity else None
+
+    def unlink_user(self, user_id: int) -> bool:
+        with SessionLocal() as db:
+            identity = db.scalar(select(WhatsAppIdentity).where(WhatsAppIdentity.user_id == user_id))
+            if identity is None:
+                return False
+            db.delete(identity)
+            db.execute(delete(WhatsAppLinkChallenge).where(WhatsAppLinkChallenge.user_id == user_id))
+            db.commit()
+            return True
