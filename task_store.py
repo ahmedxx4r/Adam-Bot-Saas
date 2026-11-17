@@ -1,5 +1,7 @@
 """Persistent, account-scoped task lifecycle storage."""
 
+from __future__ import annotations
+
 import json
 from datetime import datetime, timezone
 from uuid import uuid4
