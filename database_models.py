@@ -78,6 +78,7 @@ class WebhookEvent(Base):
     status: Mapped[str] = mapped_column(String(24), nullable=False, default="received")
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     next_attempt_at_unix: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    processing_started_at_unix: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
