@@ -16,6 +16,7 @@ from auth import create_access_token, get_current_user, hash_password, verify_pa
 from config import settings
 from database import SessionLocal, engine, init_database
 from database_models import User
+from task_store import TaskStore
 from conversation_store import ConversationStore
 from voice_handler import VoiceHandler
 
@@ -32,12 +33,13 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Adam Voice API",
     description="Authenticated, persistent voice and text assistant API for Adam.",
-    version="1.3.0",
+    version="1.4.0",
     lifespan=lifespan,
 )
 
 voice_handler = None
 conversations = ConversationStore()
+tasks = TaskStore()
 
 
 class AuthRequest(BaseModel):
@@ -61,6 +63,18 @@ class TextChatResponse(BaseModel):
     session_id: str
     transcript: str
     reply: str
+
+
+class CreateTaskRequest(BaseModel):
+    instruction: str = Field(min_length=3, max_length=12000)
+    task_type: str = Field(default="general", max_length=64)
+    details: dict = Field(default_factory=dict)
+
+
+class TaskStatusRequest(BaseModel):
+    status: str = Field(min_length=3, max_length=32)
+    result: str | None = Field(default=None, max_length=12000)
+    error: str | None = Field(default=None, max_length=4000)
 
 
 def get_voice_handler():
@@ -131,6 +145,51 @@ def login(payload: AuthRequest):
 @app.get("/auth/me")
 def me(user: User = Depends(get_current_user)):
     return {"user_id": user.id, "email": user.email}
+
+
+@app.post("/tasks", status_code=201)
+def create_task(payload: CreateTaskRequest, user: User = Depends(get_current_user)):
+    """Create a task draft. External actions are never executed automatically."""
+    return tasks.create(
+        user_id=user.id,
+        input_text=payload.instruction.strip(),
+        task_type=payload.task_type.strip().lower() or "general",
+        extracted_data=payload.details,
+    )
+
+
+@app.get("/tasks")
+def list_tasks(user: User = Depends(get_current_user)):
+    return {"tasks": tasks.list(user.id)}
+
+
+@app.get("/tasks/{task_id}")
+def get_task(task_id: str, user: User = Depends(get_current_user)):
+    task = tasks.get(user.id, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task
+
+
+@app.patch("/tasks/{task_id}/status")
+def update_task_status(
+    task_id: str,
+    payload: TaskStatusRequest,
+    user: User = Depends(get_current_user),
+):
+    try:
+        task = tasks.transition(
+            user_id=user.id,
+            task_id=task_id,
+            new_status=payload.status,
+            result=payload.result,
+            error=payload.error,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task
 
 
 @app.get("/health")
