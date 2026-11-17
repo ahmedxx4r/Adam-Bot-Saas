@@ -22,6 +22,12 @@ def test_whatsapp_link_requires_code_from_the_claimed_sender(monkeypatch):
     user_id = create_user()
     service = WhatsAppIdentityService()
     challenge = service.create_challenge(user_id, "+201000000000")
+    try:
+        service.create_challenge(user_id, "+201000000000")
+    except ValueError as exc:
+        assert "already active" in str(exc)
+    else:
+        raise AssertionError("Expected active challenge rate limit")
     assert service.verify_inbound_code("+201000000001", challenge["verification_code"]) is None
     assert service.user_for_phone("+201000000000") is None
     linked = service.verify_inbound_code("+201000000000", challenge["verification_code"])
