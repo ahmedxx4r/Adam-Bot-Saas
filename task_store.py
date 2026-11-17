@@ -39,6 +39,25 @@ class TaskStore:
             ).all()
             return [self._serialize(task) for task in tasks]
 
+    def update_details(self, user_id: int, task_id: str, details: dict, missing_fields: list[str] | None = None):
+        with SessionLocal() as db:
+            task = db.scalar(select(AgentTask).where(AgentTask.id == task_id, AgentTask.user_id == user_id))
+            if task is None:
+                return None
+            if task.status != "awaiting_user_input":
+                raise ValueError("Task is not waiting for user input")
+            current = json.loads(task.extracted_data or "{}")
+            current.update(details)
+            if missing_fields is not None:
+                current["missing_fields"] = [str(item)[:120] for item in missing_fields[:20]]
+            if not current.get("missing_fields"):
+                current["clarification_question"] = None
+                task.status = "awaiting_confirmation"
+            task.extracted_data = json.dumps(current, ensure_ascii=False)
+            task.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(task)
+            return self._serialize(task)
     def transition(self, user_id: int, task_id: str, new_status: str, result: str | None = None, error: str | None = None):
         if new_status not in TASK_STATUSES:
             raise ValueError("Invalid task status")
