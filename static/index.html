@@ -87,13 +87,34 @@ async function createWhatsAppLink(){
     await refreshTasks();
   }catch(e){out.textContent='Error: '+e.message}finally{button.disabled=false;button.textContent='Plan task'}
 }
-async function refreshTasks(){
+
+async function updateTaskStatus(taskId,status){
+  const list=document.getElementById('taskList');
+  try{const r=await fetch('/tasks/'+encodeURIComponent(taskId)+'/status',{method:'PATCH',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({status})});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Could not update task');await refreshTasks()}
+  catch(e){list.textContent='Error: '+e.message}
+}
+\nasync function refreshTasks(){
   const list=document.getElementById('taskList');if(!token()){list.textContent='Log in first.';return}
   list.textContent='Loading…';
   try{const r=await fetch('/tasks',{headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Could not load tasks');
     list.replaceChildren();
     if(!d.tasks.length){list.textContent='No tasks yet.';return}
-    for(const task of d.tasks){const item=document.createElement('div');item.className='task-item';const title=document.createElement('strong');title.textContent=task.extracted_data.summary||task.input_text;const status=document.createElement('div');status.className='task-status';status.textContent=task.status+' · '+task.task_type;const detail=document.createElement('div');detail.className='hint';detail.textContent=task.extracted_data.clarification_question||('Task '+task.id);item.append(title,status,detail);list.append(item)}
+    for(const task of d.tasks){
+      const item=document.createElement('div');item.className='task-item';
+      const title=document.createElement('strong');title.textContent=task.extracted_data.summary||task.input_text;
+      const status=document.createElement('div');status.className='task-status';status.textContent=task.status+' · '+task.task_type;
+      const detail=document.createElement('div');detail.className='hint';detail.textContent=task.extracted_data.clarification_question||('Task '+task.id);
+      item.append(title,status,detail);
+      const actions=document.createElement('div');actions.className='task-actions';
+      if(task.status==='awaiting_confirmation'){
+        const approve=document.createElement('button');approve.textContent='Approve plan (no execution)';approve.onclick=()=>updateTaskStatus(task.id,'confirmed');actions.append(approve);
+      }
+      if(!['completed','failed','cancelled'].includes(task.status)){
+        const cancel=document.createElement('button');cancel.className='secondary';cancel.textContent='Cancel';cancel.onclick=()=>updateTaskStatus(task.id,'cancelled');actions.append(cancel);
+      }
+      if(actions.childElementCount)item.append(actions);
+      list.append(item);
+    }
   }catch(e){list.textContent='Error: '+e.message}
 }
 \ncheckHealth();\n</script></body></html>
