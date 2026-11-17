@@ -38,6 +38,13 @@ class WhatsAppIdentityService:
             linked = db.scalar(select(WhatsAppIdentity).where(WhatsAppIdentity.phone == normalized))
             if linked and linked.user_id != user_id:
                 raise ValueError("This WhatsApp number is already linked to another account")
+            active = db.scalar(select(WhatsAppLinkChallenge).where(
+                WhatsAppLinkChallenge.user_id == user_id,
+                WhatsAppLinkChallenge.phone == normalized,
+                WhatsAppLinkChallenge.expires_at_unix >= now,
+            ))
+            if active is not None:
+                raise ValueError("A verification code is already active. Wait for it to expire before requesting another.")
             db.execute(delete(WhatsAppLinkChallenge).where(WhatsAppLinkChallenge.user_id == user_id))
             db.add(WhatsAppLinkChallenge(
                 user_id=user_id, phone=normalized, code_hash=digest,
