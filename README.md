@@ -66,6 +66,8 @@ Open the developer playground at `/` and API docs at `/docs`.
 | GET | `/webhooks/whatsapp` | Verify Meta webhook subscription challenge |
 | POST | `/webhooks/whatsapp` | Verify Meta signature, normalize, persist, and deduplicate inbound text/audio events |
 | POST | `/integrations/whatsapp/link` | Create a short-lived phone ownership verification code for the signed-in account |
+| GET | `/integrations/whatsapp/me` | Check the current account's linked WhatsApp number |
+| DELETE | `/integrations/whatsapp/link` | Disconnect the current account's WhatsApp number |
 | GET | `/tasks` | List the current user's tasks |
 | GET | `/tasks/{task_id}` | Get one task owned by the current user |
 | PATCH | `/tasks/{task_id}/details` | Supply missing details and move a task to confirmation when complete |
