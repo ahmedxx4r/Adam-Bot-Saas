@@ -1,5 +1,5 @@
 from database import Base, SessionLocal, engine
-from database_models import User
+from database_models import User, WhatsAppIdentity
 from integrations.whatsapp_identity import WhatsAppIdentityService
 from webhook_store import WebhookEventStore
 
@@ -61,3 +61,23 @@ def test_persisted_inbound_messages_are_scoped_to_linked_account(monkeypatch):
     }])
     assert result["inserted"] == 1
     assert WebhookEventStore().list_recent()[0]["user_id"] == user_id
+
+
+def test_worker_claims_only_linked_pending_events_once():
+    user_id = create_user()
+    with SessionLocal() as db:
+        db.add(WhatsAppIdentity(user_id=user_id, phone="+201000000000"))
+        db.commit()
+    store = WebhookEventStore()
+    result = store.save_many([{
+        "provider": "meta",
+        "provider_message_id": "wamid.worker-claim",
+        "sender": "201000000000",
+        "event_type": "text",
+        "text": "hello",
+    }])
+    assert result["inserted"] == 1
+    event_id = store.claim_next()
+    assert event_id == result["event_ids"][0]
+    assert store.get(event_id)["status"] == "processing"
+    assert store.claim_next() is None
