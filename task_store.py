@@ -14,10 +14,10 @@ TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
 
 
 class TaskStore:
-    def create(self, user_id: int, input_text: str, task_type: str = "general", extracted_data: dict | None = None):
+    def create(self, user_id: int, input_text: str, task_type: str = "general", extracted_data: dict | None = None, initial_status: str = "awaiting_confirmation"):
         task = AgentTask(
             id=str(uuid4()), user_id=user_id, task_type=task_type,
-            status="awaiting_confirmation", input_text=input_text,
+            status=initial_status, input_text=input_text,
             extracted_data=json.dumps(extracted_data or {}, ensure_ascii=False),
         )
         with SessionLocal() as db:
@@ -49,6 +49,7 @@ class TaskStore:
             if task.status in TERMINAL_STATUSES:
                 raise ValueError("Terminal tasks cannot be changed")
             allowed = {
+                "awaiting_user_input": {"awaiting_confirmation", "cancelled"},
                 "awaiting_confirmation": {"queued", "cancelled"},
                 "queued": {"running", "cancelled"},
                 "running": {"completed", "failed", "needs_human", "cancelled"},
