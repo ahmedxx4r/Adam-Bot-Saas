@@ -49,6 +49,9 @@
     <label for="whatsappPhone">WhatsApp number (E.164)</label>
     <input id="whatsappPhone" type="tel" placeholder="+201XXXXXXXXX" autocomplete="tel">
     <button id="linkWhatsAppButton" onclick="createWhatsAppLink()">Generate verification code</button>
+    <button class="secondary" onclick="refreshWhatsAppLink()">Refresh status</button>
+    <button class="secondary" onclick="unlinkWhatsApp()">Disconnect</button>
+    <p id="whatsappLinkStatus" class="hint">Link status not checked.</p>
     <pre id="whatsappLinkResult">Your WhatsApp linking status will appear here.</pre>
   </section>
   <p class="hint" style="margin-top:24px">Developer playground — user accounts and account-scoped conversation sessions are enabled. This is not a full admin console.</p>
@@ -70,7 +73,18 @@ async function sendMessage(){const message=document.getElementById('message').va
 async function sendVoice(){const file=document.getElementById('audio').files[0],button=document.getElementById('voiceSend'),transcript=document.getElementById('transcript'),error=document.getElementById('voiceError'),player=document.getElementById('audioReply');if(!token()){error.textContent='Log in first.';return}if(!file){error.textContent='Choose an audio file first.';return}const form=new FormData();form.append('audio',file);if(sessionId())form.append('session_id',sessionId());button.disabled=true;button.textContent='Adam is listening…';error.textContent='Processing voice…';player.hidden=true;try{const r=await fetch('/voice/chat',{method:'POST',headers:authHeaders(),body:form});if(!r.ok){const d=await r.json();throw new Error(d.detail||'Voice request failed')}const blob=await r.blob();if(player.dataset.url)URL.revokeObjectURL(player.dataset.url);const url=URL.createObjectURL(blob);player.src=url;player.dataset.url=url;player.hidden=false;document.getElementById('session').value=r.headers.get('X-Adam-Session-ID')||sessionId();transcript.textContent=decodeURIComponent(r.headers.get('X-Adam-Transcript')||'');error.textContent='Reply ready. Press play to listen.'}catch(e){error.textContent='Error: '+e.message}finally{button.disabled=false;button.textContent='Send voice message'}}
 
 
-async function createWhatsAppLink(){
+
+async function refreshWhatsAppLink(){
+  const status=document.getElementById('whatsappLinkStatus');if(!token()){status.textContent='Log in first.';return}
+  try{const r=await fetch('/integrations/whatsapp/me',{headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Could not load link status');status.textContent=d.linked?'Connected: '+d.phone:'No WhatsApp number linked.'}
+  catch(e){status.textContent='Error: '+e.message}
+}
+async function unlinkWhatsApp(){
+  const status=document.getElementById('whatsappLinkStatus');if(!token()){status.textContent='Log in first.';return}
+  try{const r=await fetch('/integrations/whatsapp/link',{method:'DELETE',headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Could not disconnect');status.textContent=d.unlinked?'WhatsApp number disconnected.':'No linked number found.'}
+  catch(e){status.textContent='Error: '+e.message}
+}
+\nasync function createWhatsAppLink(){
   const phone=document.getElementById('whatsappPhone').value.trim(),button=document.getElementById('linkWhatsAppButton'),out=document.getElementById('whatsappLinkResult');
   if(!token()){out.textContent='Log in first.';return}if(!phone){out.textContent='Enter your phone number.';return}
   button.disabled=true;button.textContent='Generating…';out.textContent='Creating a short-lived verification code…';
