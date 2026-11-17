@@ -72,6 +72,7 @@ class WebhookEvent(Base):
     provider: Mapped[str] = mapped_column(String(32), nullable=False)
     provider_message_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sender: Mapped[str] = mapped_column(String(64), nullable=False)
+    user_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     event_type: Mapped[str] = mapped_column(String(32), nullable=False)
     payload: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(24), nullable=False, default="received")
