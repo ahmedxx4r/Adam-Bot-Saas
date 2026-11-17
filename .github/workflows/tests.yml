@@ -22,3 +22,10 @@ jobs:
         run: python -m compileall -q .
       - name: Run tests
         run: pytest -q
+
+      - name: Validate Docker Compose configuration
+        env:
+          POSTGRES_PASSWORD: test-postgres-password
+          AUTH_SECRET_KEY: test-auth-secret-that-is-at-least-32-characters
+          OPENAI_API_KEY: test-openai-key
+        run: docker compose config --quiet
