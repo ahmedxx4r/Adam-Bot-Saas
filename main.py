@@ -21,6 +21,7 @@ from task_store import TaskStore
 from conversation_store import ConversationStore
 from voice_handler import VoiceHandler
 from integrations.whatsapp_webhook import normalize_webhook, verify_signature, verify_webhook_challenge
+from webhook_store import WebhookEventStore
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("adam")
@@ -35,13 +36,14 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Adam Voice API",
     description="Authenticated, persistent voice and text assistant API for Adam.",
-    version="1.7.0",
+    version="1.8.0",
     lifespan=lifespan,
 )
 
 voice_handler = None
 conversations = ConversationStore()
 tasks = TaskStore()
+webhook_events = WebhookEventStore()
 
 
 class AuthRequest(BaseModel):
@@ -286,6 +288,8 @@ def verify_whatsapp_webhook(
 @app.post("/webhooks/whatsapp")
 async def receive_whatsapp_webhook(request: Request):
     body = await request.body()
+    if len(body) > 2 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Webhook payload is too large")
     signature = request.headers.get("X-Hub-Signature-256")
     if not verify_signature(settings.whatsapp_app_secret, body, signature):
         raise HTTPException(status_code=401, detail="Invalid WhatsApp webhook signature")
@@ -294,9 +298,21 @@ async def receive_whatsapp_webhook(request: Request):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Invalid JSON payload") from exc
     events = normalize_webhook(payload)
-    # The verified events are normalized only. Delivery, media download, and AI replies
-    # are deliberately deferred until the Meta account and outbound adapter are configured.
-    return {"status": "accepted", "normalized_events": events, "processed": False}
+    try:
+        persistence = webhook_events.save_many(events)
+    except Exception as exc:
+        logger.exception("Could not persist WhatsApp webhook events")
+        raise HTTPException(status_code=503, detail="Webhook event storage is temporarily unavailable") from exc
+    # Events are persisted and deduplicated. User routing and AI replies remain disabled
+    # until a WhatsApp sender has been securely linked to an Adam account.
+    return {
+        "status": "accepted",
+        "received": len(events),
+        "persisted": persistence["inserted"],
+        "duplicates": persistence["duplicates"],
+        "event_ids": persistence["event_ids"],
+        "processed": False,
+    }
 
 
 @app.get("/health")
