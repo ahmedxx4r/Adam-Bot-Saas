@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from database import SessionLocal
-from database_models import WebhookEvent
+from database_models import WebhookEvent, WhatsAppIdentity
 
 
 class WebhookEventStore:
@@ -28,6 +28,7 @@ class WebhookEventStore:
                     provider=provider,
                     provider_message_id=str(message_id)[:255] if message_id else None,
                     sender=str(event.get("sender") or "unknown")[:64],
+                    user_id=(db.scalar(select(WhatsAppIdentity.user_id).where(WhatsAppIdentity.phone == "+" + str(event.get("sender")))) if event.get("sender") else None),
                     event_type=str(event.get("event_type") or "unknown")[:32],
                     payload=json.dumps(event, ensure_ascii=False),
                     status="received",
@@ -55,6 +56,7 @@ class WebhookEventStore:
                     "provider": row.provider,
                     "provider_message_id": row.provider_message_id,
                     "sender": row.sender,
+                    "user_id": row.user_id,
                     "event_type": row.event_type,
                     "payload": json.loads(row.payload),
                     "status": row.status,
