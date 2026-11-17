@@ -289,7 +289,8 @@ def create_whatsapp_link(payload: WhatsAppLinkRequest, user: User = Depends(get_
 
 @app.get("/integrations/whatsapp/me")
 def get_whatsapp_link(user: User = Depends(get_current_user)):
-    return {"linked": bool(whatsapp_identities.linked_phone_for_user(user.id)), "phone": whatsapp_identities.linked_phone_for_user(user.id)}
+    phone = whatsapp_identities.linked_phone_for_user(user.id)
+    return {"linked": bool(phone), "phone": phone}
 
 
 @app.delete("/integrations/whatsapp/link")
