@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Adam Voice API",
     description="Authenticated, persistent voice and text assistant API for Adam.",
-    version="1.6.0",
+    version="1.7.0",
     lifespan=lifespan,
 )
 
@@ -76,6 +76,11 @@ class CreateTaskRequest(BaseModel):
 class AgentPlanRequest(BaseModel):
     instruction: str = Field(min_length=3, max_length=12000)
     session_id: str | None = Field(default=None, max_length=128)
+
+
+class TaskDetailsRequest(BaseModel):
+    details: dict = Field(default_factory=dict)
+    missing_fields: list[str] | None = None
 
 
 class TaskStatusRequest(BaseModel):
@@ -228,6 +233,20 @@ def get_task(task_id: str, user: User = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Task not found")
     return task
 
+
+@app.patch("/tasks/{task_id}/details")
+def update_task_details(
+    task_id: str,
+    payload: TaskDetailsRequest,
+    user: User = Depends(get_current_user),
+):
+    try:
+        task = tasks.update_details(user.id, task_id, payload.details, payload.missing_fields)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task
 
 @app.patch("/tasks/{task_id}/status")
 def update_task_status(
