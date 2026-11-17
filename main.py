@@ -5,7 +5,7 @@ from pathlib import Path
 from urllib.parse import quote
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
@@ -20,6 +20,7 @@ from database_models import User
 from task_store import TaskStore
 from conversation_store import ConversationStore
 from voice_handler import VoiceHandler
+from integrations.whatsapp_webhook import normalize_webhook, verify_signature, verify_webhook_challenge
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("adam")
@@ -34,7 +35,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Adam Voice API",
     description="Authenticated, persistent voice and text assistant API for Adam.",
-    version="1.5.0",
+    version="1.6.0",
     lifespan=lifespan,
 )
 
@@ -247,6 +248,36 @@ def update_task_status(
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
+
+
+@app.get("/webhooks/whatsapp")
+def verify_whatsapp_webhook(
+    hub_mode: str | None = Query(default=None, alias="hub.mode"),
+    hub_verify_token: str | None = Query(default=None, alias="hub.verify_token"),
+    hub_challenge: str | None = Query(default=None, alias="hub.challenge"),
+):
+    challenge = verify_webhook_challenge(
+        hub_mode, hub_verify_token, hub_challenge, settings.whatsapp_verify_token
+    )
+    if challenge is None:
+        raise HTTPException(status_code=403, detail="WhatsApp webhook verification failed")
+    return Response(content=challenge, media_type="text/plain")
+
+
+@app.post("/webhooks/whatsapp")
+async def receive_whatsapp_webhook(request: Request):
+    body = await request.body()
+    signature = request.headers.get("X-Hub-Signature-256")
+    if not verify_signature(settings.whatsapp_app_secret, body, signature):
+        raise HTTPException(status_code=401, detail="Invalid WhatsApp webhook signature")
+    try:
+        payload = await request.json()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload") from exc
+    events = normalize_webhook(payload)
+    # The verified events are normalized only. Delivery, media download, and AI replies
+    # are deliberately deferred until the Meta account and outbound adapter are configured.
+    return {"status": "accepted", "normalized_events": events, "processed": False}
 
 
 @app.get("/health")
