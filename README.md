@@ -53,6 +53,8 @@ Open the developer playground at `/` and API docs at `/docs`.
 | POST | `/voice/chat` | Audio in, MP3 out |
 | POST | `/agent/plan` | Understand a request and return a proposed plan without executing it |
 | POST | `/agent/tasks` | Plan and save an account-scoped task draft |
+| GET | `/webhooks/whatsapp` | Verify Meta webhook subscription challenge |
+| POST | `/webhooks/whatsapp` | Verify Meta signature and normalize inbound text/audio events |
 | GET | `/tasks` | List the current user's tasks |
 | GET | `/tasks/{task_id}` | Get one task owned by the current user |
 | PATCH | `/tasks/{task_id}/status` | Move a task through allowed lifecycle states |
@@ -89,7 +91,7 @@ Reuse the same session ID to share context between voice and text.
 
 - Agent planning is implemented, but external tools are not executed yet. Planning endpoints explicitly do not place calls, send messages, or confirm reservations.
 - Tasks can be saved and tracked, but no background worker or tool-execution queue is connected yet.
-- WhatsApp provider integration is not connected; it requires Meta developer setup, a test/business number, webhook URL, and credentials.
+- WhatsApp webhook verification and inbound text/audio event normalization are implemented. Media download, AI processing, and outbound voice-note delivery still require Meta developer setup, a public webhook URL, and credentials.
 - No PSTN/SIP carrier is connected. Real calls require an approved provider, phone routing, and account configuration.
 - The root page remains a developer playground, not a complete admin dashboard.
 - Audio processing has not been validated against live provider credentials or all mobile voice-note codecs.
