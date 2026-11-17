@@ -42,7 +42,7 @@ In a second process/container, start the durable WhatsApp event worker:
 python worker.py
 ```
 
-The worker polls persisted webhook events and atomically claims each event so multiple worker instances do not process the same event concurrently. Failed events are retried up to five attempts with exponential backoff (30 seconds up to 15 minutes). Set `WORKER_POLL_SECONDS` to adjust polling frequency (minimum 1 second).
+The worker polls persisted webhook events and atomically claims each event so multiple worker instances do not process the same event concurrently. Failed events are retried up to five attempts with exponential backoff (30 seconds up to 15 minutes); a 15-minute processing lease lets another worker recover work abandoned by a crashed process. Set `WORKER_POLL_SECONDS` to adjust polling frequency (minimum 1 second).
 
 Open the developer playground at `/` and API docs at `/docs`.
 
