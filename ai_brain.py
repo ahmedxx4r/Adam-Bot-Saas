@@ -9,7 +9,10 @@ class AIBrain:
     def __init__(self):
         if not settings.openai_api_key:
             raise RuntimeError("OPENAI_API_KEY is missing")
-        self.client = OpenAI(api_key=settings.openai_api_key)
+        client_kwargs = {"api_key": settings.openai_api_key}
+        if settings.openai_base_url:
+            client_kwargs["base_url"] = settings.openai_base_url
+        self.client = OpenAI(**client_kwargs)
 
     def transcribe(self, audio_file):
         """Convert an uploaded audio file into text."""
