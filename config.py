@@ -11,6 +11,7 @@ class Settings:
 
     def __init__(self):
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
+        self.openai_base_url = os.getenv("OPENAI_BASE_URL", "")
         self.elevenlabs_api_key = os.getenv("ELEVENLABS_API_KEY", "")
         self.openai_chat_model = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
         self.openai_stt_model = os.getenv("OPENAI_STT_MODEL", "whisper-1")
