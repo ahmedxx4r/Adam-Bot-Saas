@@ -20,6 +20,53 @@
   </style>
 </head>
 <body><main>
+<section class="card" style="margin-top:24px;text-align:center"><h2>Talk to Adam</h2>
+<p class="hint">Press the button, speak, press again to send. Adam answers with his voice.</p>
+<button id="talkBtn" style="font-size:1.3rem;padding:18px 32px;border-radius:40px;cursor:pointer">🎙 Start talking</button>
+<p id="talkStatus" class="hint"></p><p id="talkText" class="hint" dir="auto"></p><audio id="talkAudio" controls hidden style="width:100%"></audio></section>
+<script>
+(function(){
+const btn=document.getElementById('talkBtn'),st=document.getElementById('talkStatus'),tx=document.getElementById('talkText'),au=document.getElementById('talkAudio');
+let rec=null,chunks=[],stream=null,sid='';
+async function ensureToken(){
+  let t=sessionStorage.getItem('adam_access_token');if(t)return t;
+  let em=localStorage.getItem('adam_talk_email'),pw=localStorage.getItem('adam_talk_pw');
+  const rnd=()=>Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
+  if(!em){em='talk-'+rnd().slice(0,10)+'@adam.local';pw=rnd();localStorage.setItem('adam_talk_email',em);localStorage.setItem('adam_talk_pw',pw)}
+  for(const a of ['login','register']){
+    const r=await fetch('/auth/'+a,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:em,password:pw})});
+    if(r.ok){const d=await r.json();sessionStorage.setItem('adam_access_token',d.access_token);return d.access_token}
+  }
+  throw new Error('Could not sign in');
+}
+async function start(){
+  try{stream=await navigator.mediaDevices.getUserMedia({audio:true})}catch(e){st.textContent='Microphone blocked: '+e.message;return}
+  chunks=[];rec=new MediaRecorder(stream);
+  rec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
+  rec.onstop=send;rec.start();btn.textContent='⏹ Stop and send';st.textContent='Listening…';
+}
+async function send(){
+  stream.getTracks().forEach(t=>t.stop());
+  const type=(rec.mimeType||'audio/webm').split(';')[0];
+  const ext=type.includes('mp4')?'m4a':type.includes('ogg')?'ogg':'webm';
+  const blob=new Blob(chunks,{type});
+  btn.disabled=true;btn.textContent='Adam is thinking…';st.textContent='';
+  try{
+    const tk=await ensureToken();
+    const f=new FormData();f.append('audio',blob,'voice.'+ext);if(sid)f.append('session_id',sid);
+    const r=await fetch('/voice/chat',{method:'POST',headers:{Authorization:'Bearer '+tk},body:f});
+    if(!r.ok){let m='Request failed';try{m=(await r.json()).detail||m}catch(_){}throw new Error(m)}
+    sid=r.headers.get('X-Adam-Session-ID')||sid;
+    tx.textContent='You: '+decodeURIComponent(r.headers.get('X-Adam-Transcript')||'')+'  |  Adam: '+decodeURIComponent(r.headers.get('X-Adam-Reply')||'');
+    const b=await r.blob();au.src=URL.createObjectURL(b);au.hidden=false;au.play().catch(()=>{});
+    st.textContent='Done. Press to talk again.';
+  }catch(e){st.textContent='Error: '+e.message}
+  finally{btn.disabled=false;btn.textContent='🎙 Start talking';rec=null}
+}
+btn.addEventListener('click',()=>{if(rec&&rec.state==='recording')rec.stop();else start()});
+})();
+</script>
+
   <div class="top"><div><h1>Adam Control Center</h1><div class="sub">Voice AI · Developer playground · Service status</div></div><div class="pill">NEXLOVA · ADAM</div></div>
   <section class="card" style="margin-top:24px"><h2>Account access</h2>
     <label for="email">Email</label><input id="email" type="email" autocomplete="username" placeholder="you@example.com">
@@ -84,7 +131,7 @@ async function unlinkWhatsApp(){
   try{const r=await fetch('/integrations/whatsapp/link',{method:'DELETE',headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Could not disconnect');status.textContent=d.unlinked?'WhatsApp number disconnected.':'No linked number found.'}
   catch(e){status.textContent='Error: '+e.message}
 }
-\nasync function createWhatsAppLink(){
+async function createWhatsAppLink(){
   const phone=document.getElementById('whatsappPhone').value.trim(),button=document.getElementById('linkWhatsAppButton'),out=document.getElementById('whatsappLinkResult');
   if(!token()){out.textContent='Log in first.';return}if(!phone){out.textContent='Enter your phone number.';return}
   button.disabled=true;button.textContent='Generating…';out.textContent='Creating a short-lived verification code…';
@@ -92,7 +139,7 @@ async function unlinkWhatsApp(){
     out.textContent='Number: '+d.phone+'\nVerification code: '+d.verification_code+'\nExpires in: 10 minutes\n\nNow send this exact 8-digit code from that WhatsApp account to your Adam business number. The number is linked only after Meta delivers the message from the matching sender.';
   }catch(e){out.textContent='Error: '+e.message}finally{button.disabled=false;button.textContent='Generate verification code'}
 }
-\nasync function createAgentTask(){
+async function createAgentTask(){
   const instruction=document.getElementById('taskInstruction').value.trim(),button=document.getElementById('planTaskButton'),out=document.getElementById('agentPlan');
   if(!token()){out.textContent='Log in first.';return}if(instruction.length<3){out.textContent='Write a task first.';return}
   button.disabled=true;button.textContent='Planning…';out.textContent='Adam is understanding the request…';
@@ -107,7 +154,7 @@ async function updateTaskStatus(taskId,status){
   try{const r=await fetch('/tasks/'+encodeURIComponent(taskId)+'/status',{method:'PATCH',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({status})});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Could not update task');await refreshTasks()}
   catch(e){list.textContent='Error: '+e.message}
 }
-\nasync function refreshTasks(){
+async function refreshTasks(){
   const list=document.getElementById('taskList');if(!token()){list.textContent='Log in first.';return}
   list.textContent='Loading…';
   try{const r=await fetch('/tasks',{headers:authHeaders()});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Could not load tasks');
@@ -131,4 +178,6 @@ async function updateTaskStatus(taskId,status){
     }
   }catch(e){list.textContent='Error: '+e.message}
 }
-\ncheckHealth();\n</script></body></html>
+
+checkHealth();
+</script></body></html>
